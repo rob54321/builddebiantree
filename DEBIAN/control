@@ -1,0 +1,7 @@
+Package: builddebiantree
+Version: 1.12
+Architecture: i386
+Maintainer: Robert Key robkey@mighty.co.za
+Depends: perl, dpkg
+Description: This perl script builds a debian tree from source in svn.
+	This script extracts source from svn, builds debian packages, makes the correct directory tree for a debian distribution and places all deb files there.

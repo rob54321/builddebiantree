@@ -1,0 +1,196 @@
+#!/usr/bin/perl
+# this programme exports all debian source packages from svn and
+# builds the debian packages, places then in the debian tree, builds the
+# Packages file, updates apt-get.
+use File::Basename;
+use Getopt::Std;
+
+# remove working dir
+sub removeworkingdir {
+    # remove working dir
+    chdir $workingdir;
+    chdir "..";
+    system("rm -rf *");
+}
+
+# given an archive name this function returns the package name
+sub getpackagename {
+    $archive = $_[0];
+
+    # get the package name from the control file
+    @command = ("dpkg-deb -f", $archive, "Package");
+    $packagename = `@command`;
+    chomp $packagename;
+
+    return $packagename;
+}
+# update override file appends the package name, optional and myown
+# to override file. The file Packages is then created using dpkg-scanpackages
+sub updateoverridefile {
+    my($archive, $packagename);
+    $archive = $_[0];
+
+    #get package name
+    $packagename = getpackagename($archive);
+
+    # write name Optional MyOwn to override file
+    print OF $packagename, "\t\t\t\tOptional\tMyOwn\n";
+}
+# the give archive is added to the distribution tree
+# all the correct directories are created if necesary
+# the name is then added to the override file
+sub movearchivetotree {
+    my($archive);
+
+    $archive = $_[0];
+    
+    # get package name
+    $packagename = getpackagename($archive);
+
+    # make dir under pool/firstletter of packagename/packagename
+    # get first character of string
+    $firstchar = substr($packagename, 0, 1);
+
+    # make directory
+    mkdir $debianpool . "/" . $firstchar;
+    mkdir $debianpool . "/" . $firstchar . "/" . $packagename;
+    
+    $destination = $debianpool . "/" . $firstchar . "/" . $packagename;
+
+    # append package name to override file
+    # do this before the move because the package name is read from
+    # the archive.
+    updateoverridefile($archive);
+
+    #copy debian package to pool/firstletterofname/name/file.deb
+    system ("cp -v " . $archive . " " . $destination);
+}
+
+# add_archives will move all archives in the given directory and
+# placed in the Debian distribution tree.
+# a directory must be passed to this function
+sub add_archive {
+    # get archive directory
+    $arcdir = $_[0];
+
+    # make a list of all the debian archives
+    opendir (PD, $arcdir) or die $arcdir . "$!\n";
+    chdir $arcdir;
+    foreach $archive (readdir(PD)) {
+	($file, $dir, $ext) = fileparse($archive, qr/\.[^.]*/);
+
+	# only process .deb files
+	next if $ext ne ".deb";
+	print "Processing: ", $achive, "\n";
+
+	# move archive to debian dist tree and create dirs
+	# if necessary
+	movearchivetotree($archive);
+    }
+    closedir(PD);
+}
+
+# buildtree will recurse a directory and build all the source packages if
+# necesary and pack them into a Debian distribution tree in the correct
+# directories.
+sub buildtree {
+    # open a directory and list dirs inside
+    opendir (DEB, $workingdir) or die "no dir: $!";
+    chdir $workingdir;
+
+    # descend into each subdirectory under the working dir DEB.
+    foreach $name (readdir(DEB)) {
+	if ($name ne ".." and $name ne "."){
+	    print "Processing: ", $name, "\n";
+
+	    chdir $name or die "cannot change to ",$name, ": $!";
+	    
+            # untar file if it exists
+	    if (-e "contents.tar.gz") {
+		system("tar -xpzf contents.tar.gz") ;
+
+		# remove tar file
+		unlink "contents.tar.gz";
+	    }
+	    # change back
+	    chdir ".." or die "cannot go back";
+
+	    # build debian package
+	    system("dpkg -b " . $name);
+
+	    # get name of package from control file
+	    $archive = $name . ".deb";
+
+	    # move archive to tree
+	    movearchivetotree($archive);
+	}
+    }
+    closedir(DEB);
+    removeworkingdir();
+}
+
+# main entry point
+$debianroot = "/mnt/hdint/robert/debian";
+$debianpool = $debianroot . "/pool";
+$overridedir = $debianroot . "/indices";
+$overridefile = $overridedir . "/override";
+$workingdir = "/mnt/hdint/robert/tmp/debian";
+$packagesdir = $debianroot . "/dists/etch/main/binary-i386";
+
+#mkdir directories
+system("mkdir -p " . $debianroot) if ! -d $debianroot;
+system("mkdir -p " . $debianpool) if ! -d $debianpool;
+system("mkdir -p " . $workingdir) if ! -d $workingdir;
+system("mkdir -p " . $packagesdir) if ! -d $packagesdir;
+system("mkdir -p " . $overridedir) if ! -d $overridedir;
+
+# if no options print message
+if (! $ARGV[0]) {
+    print "usage: builddebiantree [options] filelist\
+\t-a extract all from subversion -> build all -> add to distribution tree\
+\t-p extract package from subversion -> build -> add to distribution tree\
+\t-s directory containing archives -> add to distribution tree\n";
+    exit();
+}
+
+# get command line options
+getopts('ap:s:');
+
+if ($opt_a) {
+
+    # checkout debian packages
+    system("svn --force -q export file:///home/robert/svn/debian " . $workingdir);
+
+    #open new override file for building of tree
+    open OF, ">". $overridefile or die "cannot open override file: $!\n";
+    buildtree();
+    close OF;
+}
+
+if ($opt_p) {
+    # checkout only the one package
+
+    $exportcommand = "svn --force export file:///home/robert/svn/debian/" . $opt_p . " " . $workingdir . "/" . $opt_p;
+    system($exportcommand);
+
+    #open override file for appending
+    open OF, ">>". $overridefile or die "cannot open override file: $!\n";
+    buildtree();
+    close OF;
+}
+if ($opt_s) {
+    # open override file for appending
+    open OF, ">>". $overridefile or die "cannot open override file: $!\n";
+
+    # move all deb archives to dist tree
+    add_archive($opt_s);
+
+    # close file
+    close OF;
+}
+
+#change to debian root
+chdir $debianroot;
+
+# make Packages file for debian distribution
+system("dpkg-scanpackages pool indices/override > dists/etch/main/binary-i386/Packages");
