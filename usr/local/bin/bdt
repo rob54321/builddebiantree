@@ -130,12 +130,23 @@ sub buildtree {
 }
 
 # main entry point
+# if no options print message
+if (! $ARGV[0]) {
+    print "usage: builddebiantree [options] filelist\
+\t-a extract all from subversion -> build all -> add to distribution tree\
+\t-l list debian packages in repository\
+\t-p extract package from subversion -> build -> add to distribution tree\
+\t-s directory containing archives -> add to distribution tree\n";
+    exit();
+}
 $debianroot = "/mnt/hdint/robert/debian";
 $debianpool = $debianroot . "/pool";
 $overridedir = $debianroot . "/indices";
 $overridefile = $overridedir . "/override";
 $workingdir = "/mnt/hdint/robert/tmp/debian";
 $packagesdir = $debianroot . "/dists/etch/main/binary-i386";
+$repository = "file:///mnt/hdint/svn/debian/";
+$exportcommand = "svn --force -q export " . $repository;
 
 #mkdir directories
 system("mkdir -p " . $debianroot) if ! -d $debianroot;
@@ -144,22 +155,21 @@ system("mkdir -p " . $workingdir) if ! -d $workingdir;
 system("mkdir -p " . $packagesdir) if ! -d $packagesdir;
 system("mkdir -p " . $overridedir) if ! -d $overridedir;
 
-# if no options print message
-if (! $ARGV[0]) {
-    print "usage: builddebiantree [options] filelist\
-\t-a extract all from subversion -> build all -> add to distribution tree\
-\t-p extract package from subversion -> build -> add to distribution tree\
-\t-s directory containing archives -> add to distribution tree\n";
-    exit();
-}
-
 # get command line options
-getopts('ap:s:');
+getopts('alp:s:');
+
+if ($opt_l) {
+    # list all packages and exit
+    $command = "svn -v list " . $repository;
+    system($command);
+    exit(0);
+}
 
 if ($opt_a) {
 
     # checkout debian packages
-    system("svn --force -q export file:///home/robert/svn/debian " . $workingdir);
+    $command = $exportcommand . " " . $workingdir;
+    system($command);
 
     #open new override file for building of tree
     open OF, ">". $overridefile or die "cannot open override file: $!\n";
@@ -170,8 +180,8 @@ if ($opt_a) {
 if ($opt_p) {
     # checkout only the one package
 
-    $exportcommand = "svn --force export file:///home/robert/svn/debian/" . $opt_p . " " . $workingdir . "/" . $opt_p;
-    system($exportcommand);
+    $command = $exportcommand . $opt_p . " " . $workingdir . "/" . $opt_p;
+    system($command);
 
     #open override file for appending
     open OF, ">>". $overridefile or die "cannot open override file: $!\n";
