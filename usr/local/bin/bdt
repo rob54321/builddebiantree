@@ -3,6 +3,7 @@
 # builds the debian packages, places then in the debian tree, builds the
 # Packages file, updates apt-get.
 use File::Basename;
+use File::Find;
 use Getopt::Std;
 
 # remove working dir
@@ -63,31 +64,28 @@ sub movearchivetotree {
     updateoverridefile($archive);
 
     #copy debian package to pool/firstletterofname/name/file.deb
-    system ("cp -v " . $archive . " " . $destination);
+    system ("cp " . $archive . " " . $destination);
 }
 
-# add_archives will move all archives in the given directory and
+# add_archives will move all archives in the given directory tree and
 # placed in the Debian distribution tree.
 # a directory must be passed to this function
 sub add_archive {
-    # get archive directory
-    $arcdir = $_[0];
+    # get current selection if it is a file
+    $archive = $File::Find::name;
 
-    # make a list of all the debian archives
-    opendir (PD, $arcdir) or die $arcdir . "$!\n";
-    chdir $arcdir;
-    foreach $archive (readdir(PD)) {
+    # print dir name
+    print "Processing dir: ", $archive, "\n" if -d;
+    
+    # for each .deb file process it
+    if( -f $archive) {
+	# get the extension of the file name
 	($file, $dir, $ext) = fileparse($archive, qr/\.[^.]*/);
-
-	# only process .deb files
-	next if $ext ne ".deb";
-	print "Processing: ", $achive, "\n";
 
 	# move archive to debian dist tree and create dirs
 	# if necessary
-	movearchivetotree($archive);
+	movearchivetotree($archive) if $ext eq ".deb";
     }
-    closedir(PD);
 }
 
 # buildtree will recurse a directory and build all the source packages if
@@ -192,8 +190,8 @@ if ($opt_s) {
     # open override file for appending
     open OF, ">>". $overridefile or die "cannot open override file: $!\n";
 
-    # move all deb archives to dist tree
-    add_archive($opt_s);
+    # recurse down dirs and move all archives to deb dist tree
+    find \&add_archive, $opt_s;
 
     # close file
     close OF;
