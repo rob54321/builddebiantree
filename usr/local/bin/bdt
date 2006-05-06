@@ -160,7 +160,7 @@ $workingdir = "/mnt/hdint/robert/tmp/debian";
 $packagesdir = $debianroot . "dists/etch/main/binary-i386";
 $repository = "file:///mnt/hdint/svn/debian/";
 $exportcommand = "svn --force -q export " . $repository;
-$packagesfile = $packagesdir . "/" . "Packages";
+$packagesfile = $packagesdir . "/Packages";
 
 #mkdir directories
 system("mkdir -p " . $debianroot) if ! -d $debianroot;
@@ -174,8 +174,8 @@ getopts('alnp:s:');
 
 # delete the override file if it exists
 if ($opt_n) {
-    unlink($overridefile) if -e;
-    unlink($packagesfile) if -e;
+    unlink($overridefile);
+    unlink($packagesfile);
 }
     
 # list all packages and exit
@@ -224,5 +224,6 @@ if ($opt_a or $opt_s or $opt_p) {
     chdir $debianroot;
 
     # make Packages file for debian distribution
+    print "scanning\n";
     system("dpkg-scanpackages pool indices/override > dists/etch/main/binary-i386/Packages");
 }
