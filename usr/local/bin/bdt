@@ -14,16 +14,17 @@ sub removeworkingdir {
     system("rm -rf *");
 }
 
-# given an archive name this function returns the package name
-sub getpackagename {
+# given an archive name this function returns the package name or architecture
+sub getpackagefield {
     $archive = $_[0];
+    $field = $_[1];
 
     # get the package name from the control file
-    @command = ("dpkg-deb -f", $archive, "Package");
-    $packagename = `@command`;
-    chomp $packagename;
+    @command = ("dpkg-deb -f", $archive, $_[1]);
+    $field = `@command`;
+    chomp $field;
 
-    return $packagename;
+    return $field;
 }
 # update override file appends the package name, optional and myown
 # to override file. The file Packages is then created using dpkg-scanpackages
@@ -32,7 +33,7 @@ sub updateoverridefile {
     $archive = $_[0];
 
     #get package name
-    $packagename = getpackagename($archive);
+    $packagename = getpackagefield($archive, "Package");
 
     # write name Optional MyOwn to override file
     print OF $packagename, "\t\t\t\tOptional\tMyOwn\n";
@@ -40,23 +41,25 @@ sub updateoverridefile {
 # the give archive is added to the distribution tree
 # all the correct directories are created if necesary
 # the name is then added to the override file
+# parameters passed: archive name, 'rename' to rename package to standard name
 sub movearchivetotree {
     my($archive);
 
+    # archive name in current directory where we are presently
     $archive = $_[0];
     
     # get package name
-    $packagename = getpackagename($archive);
+    $packagename = getpackagefield($archive, "Package");
 
     # make dir under pool/firstletter of packagename/packagename
     # get first character of string
     $firstchar = substr($packagename, 0, 1);
 
     # make directory
-    mkdir $debianpool . "/" . $firstchar;
-    mkdir $debianpool . "/" . $firstchar . "/" . $packagename;
-    
     $destination = $debianpool . "/" . $firstchar . "/" . $packagename;
+    mkdir $debianpool . "/" . $firstchar;
+    mkdir $destination;
+    
 
     # append package name to override file
     # do this before the move because the package name is read from
@@ -65,6 +68,12 @@ sub movearchivetotree {
 
     #copy debian package to pool/firstletterofname/name/file.deb
     system ("cp -v " . $archive . " " . $destination);
+
+    if ($_[1] eq "rename") {
+	# rename debian package to standard name
+	$fullpathname = $destination . "/" . $archive;
+	system("dpkg-name " . $fullpathname);
+    }
 }
 
 # add_archives will move all archives in the given directory tree and
@@ -82,8 +91,13 @@ sub add_archive {
 	($file, $dir, $ext) = fileparse($archive, qr/\.[^.]*/);
 
 	# move archive to debian dist tree and create dirs
-	# if necessary
-	movearchivetotree($archive) if $ext eq ".deb";
+	# if file is a i386 debian archive
+	if ($ext eq ".deb") {
+	    $architecture = getpackagefield($archive, "Architecture");
+	    if ($architecture eq "i386" or $architecture eq "all") {
+		movearchivetotree($archive, "norename");
+	    }
+	}
     }
 }
 
@@ -119,7 +133,7 @@ sub buildtree {
 	    $archive = $name . ".deb";
 
 	    # move archive to tree
-	    movearchivetotree($archive);
+	    movearchivetotree($archive, "rename");
 	}
     }
     closedir(DEB);
@@ -130,20 +144,23 @@ sub buildtree {
 # if no options print message
 if (! $ARGV[0]) {
     print "usage: builddebiantree [options] filelist\
+\t-n delete override file and make a new one.
 \t-a extract all from subversion -> build all -> add to distribution tree\
 \t-l list debian packages in repository\
 \t-p extract package from subversion -> build -> add to distribution tree\
 \t-s directory containing archives -> add to distribution tree\n";
     exit();
 }
-$debianroot = "/mnt/hdint/robert/debian";
-$debianpool = $debianroot . "/pool";
-$overridedir = $debianroot . "/indices";
-$overridefile = $overridedir . "/override";
+# default values
+$debianroot = "/mnt/hdint/robert/debian/";
+$debianpool = $debianroot . "pool";
+$overridedir = $debianroot . "indices/";
+$overridefile = $overridedir . "override";
 $workingdir = "/mnt/hdint/robert/tmp/debian";
-$packagesdir = $debianroot . "/dists/etch/main/binary-i386";
+$packagesdir = $debianroot . "dists/etch/main/binary-i386";
 $repository = "file:///mnt/hdint/svn/debian/";
 $exportcommand = "svn --force -q export " . $repository;
+$packagesfile = $packagesdir . "/" . "Packages";
 
 #mkdir directories
 system("mkdir -p " . $debianroot) if ! -d $debianroot;
@@ -153,23 +170,28 @@ system("mkdir -p " . $packagesdir) if ! -d $packagesdir;
 system("mkdir -p " . $overridedir) if ! -d $overridedir;
 
 # get command line options
-getopts('alp:s:');
+getopts('alnp:s:');
 
+# delete the override file if it exists
+if ($opt_n) {
+    unlink($overridefile) if -e;
+    unlink($packagesfile) if -e;
+}
+    
+# list all packages and exit
 if ($opt_l) {
-    # list all packages and exit
     $command = "svn -v list " . $repository;
     system($command);
-    exit(0);
 }
 
+# checkout all debian packages, build and place in tree
 if ($opt_a) {
-
     # checkout debian packages
     $command = $exportcommand . " " . $workingdir;
     system($command);
 
     #open new override file for building of tree
-    open OF, ">". $overridefile or die "cannot open override file: $!\n";
+    open OF, ">>". $overridefile or die "cannot open override file: $!\n";
     buildtree();
     close OF;
 }
@@ -185,6 +207,7 @@ if ($opt_p) {
     buildtree();
     close OF;
 }
+# process a dir recursively and copy all debian i386 archives to tree
 if ($opt_s) {
     # open override file for appending
     open OF, ">>". $overridefile or die "cannot open override file: $!\n";
@@ -195,9 +218,11 @@ if ($opt_s) {
     # close file
     close OF;
 }
+# only add packages to Packages file if -a or -s or -p was given
+if ($opt_a or $opt_s or $opt_p) {
+    #change to debian root
+    chdir $debianroot;
 
-#change to debian root
-chdir $debianroot;
-
-# make Packages file for debian distribution
-system("dpkg-scanpackages pool indices/override > dists/etch/main/binary-i386/Packages");
+    # make Packages file for debian distribution
+    system("dpkg-scanpackages pool indices/override > dists/etch/main/binary-i386/Packages");
+}
