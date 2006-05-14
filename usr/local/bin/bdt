@@ -31,12 +31,24 @@ sub getpackagefield {
 sub updateoverridefile {
     my($archive, $packagename);
     $archive = $_[0];
+    $status = $_[1];
 
     #get package name
     $packagename = getpackagefield($archive, "Package");
 
-    # write name Optional MyOwn to override file
-    print OF $packagename, "\t\t\t\tOptional\tMyOwn\n";
+    if ($status eq "svn") {
+	# comes from svn, my own package
+	$priority = "Optional";
+	$section = "MyOwn";
+    }
+    else {
+	# original debian package, get fields from package
+	$priority = getpackagefield($archive, "Priority");
+	$section = getpackagefield($archive, "Section");
+	$priority = "Optional" unless $priority;
+	$section = "MyOwn" unless $section;
+    }
+    print OF $packagename, "\t\t\t\t", $priority, "\t", $section, "\n";
 }
 # the give archive is added to the distribution tree
 # all the correct directories are created if necesary
@@ -47,7 +59,8 @@ sub movearchivetotree {
 
     # archive name in current directory where we are presently
     $archive = $_[0];
-    
+    $status = $_[1];
+
     # get package name
     $packagename = getpackagefield($archive, "Package");
 
@@ -64,13 +77,13 @@ sub movearchivetotree {
     # append package name to override file
     # do this before the move because the package name is read from
     # the archive.
-    updateoverridefile($archive);
+    updateoverridefile($archive, $status);
 
     #copy debian package to pool/firstletterofname/name/file.deb
     system ("cp -v " . $archive . " " . $destination);
 
-    if ($_[1] eq "rename") {
-	# rename debian package to standard name
+    if ($status eq "svn") {
+	# rename debian package to standard name if it comes from svn
 	$fullpathname = $destination . "/" . $archive;
 	system("dpkg-name " . $fullpathname);
     }
@@ -95,7 +108,7 @@ sub add_archive {
 	if ($ext eq ".deb") {
 	    $architecture = getpackagefield($archive, "Architecture");
 	    if ($architecture eq "i386" or $architecture eq "all") {
-		movearchivetotree($archive, "norename");
+		movearchivetotree($archive, "debpackage");
 	    }
 	}
     }
@@ -133,7 +146,7 @@ sub buildtree {
 	    $archive = $name . ".deb";
 
 	    # move archive to tree
-	    movearchivetotree($archive, "rename");
+	    movearchivetotree($archive, "svn");
 	}
     }
     closedir(DEB);
