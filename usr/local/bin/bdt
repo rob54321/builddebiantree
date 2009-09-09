@@ -107,7 +107,7 @@ sub add_archive {
 	# if file is a i386 debian archive
 	if ($ext eq ".deb") {
 	    $architecture = getpackagefield($archive, "Architecture");
-	    if ($architecture eq "i386" or $architecture eq "all") {
+	    if ($architecture eq $arch or $architecture eq "all") {
 		movearchivetotree($archive, "debpackage");
 	    }
 	}
@@ -158,32 +158,47 @@ sub buildtree {
 if (! $ARGV[0]) {
     print "usage: builddebiantree [options] filelist\
 \t-n delete override file and make a new one.
-\t-a extract all from subversion -> build all -> add to distribution tree\
+\t-e extract all from subversion -> build all -> add to distribution tree\
 \t-l list debian packages in repository\
 \t-p extract package from subversion -> build -> add to distribution tree\
-\t-s directory containing archives -> add to distribution tree\n";
+\t-s directory containing archives -> add to distribution tree\n
+\t-a architecture i386 or amd64 default i386\n
+\t-d distribution etch or lenny or squeeze, testing. Default lenny\n";
     exit();
 }
 # default values
+$dist = "lenny";
+$arch = "i386";
 $debianroot = "/mnt/hdint/robert/debian/";
 $debianpool = $debianroot . "pool";
 $overridedir = $debianroot . "indices/";
 $overridefile = $overridedir . "override";
 $workingdir = "/mnt/hdint/robert/tmp/debian";
-$packagesdir = $debianroot . "dists/etch/main/binary-i386";
-$repository = "file:///mnt/hdint/svn/debian/";
+$repository = "file:///home/robert/svn/debian/";
 $exportcommand = "svn --force -q export " . $repository;
-$packagesfile = $packagesdir . "/Packages";
 
 #mkdir directories
 system("mkdir -p " . $debianroot) if ! -d $debianroot;
 system("mkdir -p " . $debianpool) if ! -d $debianpool;
 system("mkdir -p " . $workingdir) if ! -d $workingdir;
-system("mkdir -p " . $packagesdir) if ! -d $packagesdir;
 system("mkdir -p " . $overridedir) if ! -d $overridedir;
 
 # get command line options
-getopts('alnp:s:');
+getopts('a:d:elnp:s:');
+
+# set the architecture
+if ($opt_a) {
+    $arch = $opt_a;
+}
+
+# set the distribution
+if ($opt_d) {
+    $dist = $opt_d;
+}
+
+$packagesdir = $debianroot . "dists/" . $dist . "/main/binary-" . $arch;
+$packagesfile = $packagesdir . "/Packages";
+system("mkdir -p " . $packagesdir) if ! -d $packagesdir;
 
 # delete the override file if it exists
 if ($opt_n) {
@@ -198,7 +213,7 @@ if ($opt_l) {
 }
 
 # checkout all debian packages, build and place in tree
-if ($opt_a) {
+if ($opt_e) {
     # checkout debian packages
     $command = $exportcommand . " " . $workingdir;
     system($command);
@@ -231,12 +246,12 @@ if ($opt_s) {
     # close file
     close OF;
 }
-# only add packages to Packages file if -a or -s or -p was given
-if ($opt_a or $opt_s or $opt_p) {
+# only add packages to Packages file if -e or -s or -p was given
+if ($opt_e or $opt_s or $opt_p) {
     #change to debian root
     chdir $debianroot;
 
     # make Packages file for debian distribution
     print "scanning\n";
-    system("dpkg-scanpackages pool indices/override > dists/etch/main/binary-i386/Packages");
+    system("dpkg-scanpackages pool indices/override > dists/" . $dist . "/main/binary-". $arch . "/Packages");
 }
