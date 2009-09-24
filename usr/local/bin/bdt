@@ -26,31 +26,7 @@ sub getpackagefield {
 
     return $field;
 }
-# update override file appends the package name, optional and myown
-# to override file. The file Packages is then created using dpkg-scanpackages
-# the override file handle is OF which must have beenopened.
-sub updateoverridefile {
-    my($archive, $packagename);
-    $archive = $_[0];
-    $status = $_[1];
 
-    #get package name
-    $packagename = getpackagefield($archive, "Package");
-
-    if ($status eq "svn") {
-	# comes from svn, my own package
-	$priority = "Optional";
-	$section = "MyOwn";
-    }
-    else {
-	# original debian package, get fields from package
-	$priority = getpackagefield($archive, "Priority");
-	$section = getpackagefield($archive, "Section");
-	$priority = "Optional" unless $priority;
-	$section = "MyOwn" unless $section;
-    }
-    print OF $packagename, "\t\t\t\t", $priority, "\t", $section, "\n";
-}
 # the give archive is added to the distribution tree
 # all the correct directories are created if necesary
 # the name is then added to the override file
@@ -74,12 +50,6 @@ sub movearchivetotree {
     mkdir $debianpool . "/" . $firstchar;
     mkdir $destination;
     
-
-    # append package name to override file
-    # do this before the move because the package name is read from
-    # the archive.
-    updateoverridefile($archive, $status);
-
     #copy debian package to pool/firstletterofname/name/file.deb
     system ("cp -v " . $archive . " " . $destination);
 
@@ -158,7 +128,6 @@ sub buildtree {
 # if no options print message
 if (! $ARGV[0]) {
     print "usage: builddebiantree [options] filelist\
-\t-n delete override file and make a new one.
 \t-e extract all from subversion -> build all -> add to distribution tree\
 \t-l list debian packages in repository\
 \t-p extract package from subversion -> build -> add to distribution tree\
@@ -177,7 +146,7 @@ $repository = "file:///home/robert/svn/debian/";
 $exportcommand = "svn --force -q export " . $repository;
 
 # get command line options
-getopts('a:d:elnp:r:x:d:s');
+getopts('a:d:elp:r:x:d:s');
 
 # list all packages and exit
 if ($opt_l) {
@@ -200,8 +169,6 @@ if ($opt_x) {
     $debianroot = $opt_x . "/";
     # set up values of directories
     $debianpool = $debianroot . "pool";
-    $overridedir = $debianroot . "indices/";
-    $overridefile = $overridedir . "override";
     $packagesdir = $debianroot . "dists/" . $dist . "/main/binary-" . $arch;
     $packagesfile = $packagesdir . "/Packages";
 
@@ -209,18 +176,9 @@ if ($opt_x) {
     system("mkdir -p " . $debianroot) if ! -d $debianroot;
     system("mkdir -p " . $debianpool) if ! -d $debianpool;
     system("mkdir -p " . $workingdir) if ! -d $workingdir;
-    system("mkdir -p " . $overridedir) if ! -d $overridedir;
     system("mkdir -p " . $packagesdir) if ! -d $packagesdir;
 }
 
-# make a new override file from scratch
-if ($opt_n) {
-    # remove old file
-    unlink($overridefile);
-
-    
-
-}
     
 # checkout all debian packages, build and place in tree
 if ($opt_e) {
@@ -228,10 +186,7 @@ if ($opt_e) {
     $command = $exportcommand . " " . $workingdir;
     system($command);
 
-    #open new override file for building of tree
-    open OF, ">>". $overridefile or die "cannot open override file: $!\n";
     buildtree();
-    close OF;
 }
 
 if ($opt_p) {
@@ -240,30 +195,34 @@ if ($opt_p) {
     $command = $exportcommand . $opt_p . " " . $workingdir . "/" . $opt_p;
     system($command);
 
-    #open override file for appending
-    open OF, ">>". $overridefile or die "cannot open override file: $!\n";
     buildtree();
-    close OF;
 }
 # process a dir recursively and copy all debian i386 archives to tree
 if ($opt_r) {
     die "cannot open $opt_r" if ! -d $opt_r;
 
-    # open override file for appending
-    open OF, ">>". $overridefile or die "cannot open override file: $!\n";
-
     # recurse down dirs and move all archives to deb dist tree
     find \&add_archive, $opt_r;
-
-    # close file
-    close OF;
 }
-# only add packages to Packages file if -e or -s or -p was given
+# make Packages file
 if ($opt_s) {
     #change to debian root
     chdir $debianroot;
 
     # make Packages file for debian distribution
     print "scanning\n";
-    system("dpkg-scanpackages pool indices/override > dists/" . $dist . "/main/binary-". $arch . "/Packages");
+    system("dpkg-scanpackages -m -a " . $arch . " pool > dists/" . $dist . "/main/binary-". $arch . "/Packages");
+    
+    # make Packages.gzip Packages.bz2
+    chdir $packagesdir;
+    system("cp Packages P");
+    system("gzip -f Packages");
+    system("mv P Packages");
+    system("bzip2 -f -k Packages");
+    
+    # make the release file
+    chdir $debianroot . "/dists/" . $dist;
+    unlink("Release");
+    system("apt-ftparchive -o=APT::FTPArchive::Release::Components=main release . > ../Release");
+    system("mv ../Release .");
 }
