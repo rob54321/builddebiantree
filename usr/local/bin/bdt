@@ -28,6 +28,7 @@ sub getpackagefield {
 }
 # update override file appends the package name, optional and myown
 # to override file. The file Packages is then created using dpkg-scanpackages
+# the override file handle is OF which must have beenopened.
 sub updateoverridefile {
     my($archive, $packagename);
     $archive = $_[0];
@@ -89,7 +90,7 @@ sub movearchivetotree {
     }
 }
 
-# add_archives will move all archives in the given directory tree and
+# add_archive will move all archives in the given directory tree and
 # placed in the Debian distribution tree.
 # a directory must be passed to this function
 sub add_archive {
@@ -161,34 +162,27 @@ if (! $ARGV[0]) {
 \t-e extract all from subversion -> build all -> add to distribution tree\
 \t-l list debian packages in repository\
 \t-p extract package from subversion -> build -> add to distribution tree\
-\t-s directory containing archives -> add to distribution tree\n
-\t-a architecture i386 or amd64 default i386\n
+\t-r recurse directory containing archives -> add to repository\
+\t-a architecture i386 or amd64 default i386\
+\t-x destination path of archive\
+\t-s scan packages to make Packages\
 \t-d distribution etch or lenny or squeeze, testing. Default lenny\n";
     exit();
 }
 # default values
 $dist = "lenny";
 $arch = "i386";
-$debianroot = "/mnt/hdint/robert/debian/";
-$debianpool = $debianroot . "pool";
-$overridedir = $debianroot . "indices/";
-$overridefile = $overridedir . "override";
 $workingdir = "/mnt/hdint/robert/tmp/debian";
 $repository = "file:///home/robert/svn/debian/";
 $exportcommand = "svn --force -q export " . $repository;
 
-#mkdir directories
-system("mkdir -p " . $debianroot) if ! -d $debianroot;
-system("mkdir -p " . $debianpool) if ! -d $debianpool;
-system("mkdir -p " . $workingdir) if ! -d $workingdir;
-system("mkdir -p " . $overridedir) if ! -d $overridedir;
-
 # get command line options
-getopts('a:d:elnp:s:');
+getopts('a:d:elnp:r:x:d:s');
 
-# set the architecture
-if ($opt_a) {
-    $arch = $opt_a;
+# list all packages and exit
+if ($opt_l) {
+    $command = "svn -v list " . $repository;
+    system($command);
 }
 
 # set the distribution
@@ -196,22 +190,38 @@ if ($opt_d) {
     $dist = $opt_d;
 }
 
-$packagesdir = $debianroot . "dists/" . $dist . "/main/binary-" . $arch;
-$packagesfile = $packagesdir . "/Packages";
-system("mkdir -p " . $packagesdir) if ! -d $packagesdir;
+# set the architecture
+if ($opt_a) {
+    $arch = $opt_a;
+}
 
-# delete the override file if it exists
+# set up destinaton
+if ($opt_x) {
+    $debianroot = $opt_x . "/";
+    # set up values of directories
+    $debianpool = $debianroot . "pool";
+    $overridedir = $debianroot . "indices/";
+    $overridefile = $overridedir . "override";
+    $packagesdir = $debianroot . "dists/" . $dist . "/main/binary-" . $arch;
+    $packagesfile = $packagesdir . "/Packages";
+
+    #mkdir directories
+    system("mkdir -p " . $debianroot) if ! -d $debianroot;
+    system("mkdir -p " . $debianpool) if ! -d $debianpool;
+    system("mkdir -p " . $workingdir) if ! -d $workingdir;
+    system("mkdir -p " . $overridedir) if ! -d $overridedir;
+    system("mkdir -p " . $packagesdir) if ! -d $packagesdir;
+}
+
+# make a new override file from scratch
 if ($opt_n) {
+    # remove old file
     unlink($overridefile);
-    unlink($packagesfile);
+
+    
+
 }
     
-# list all packages and exit
-if ($opt_l) {
-    $command = "svn -v list " . $repository;
-    system($command);
-}
-
 # checkout all debian packages, build and place in tree
 if ($opt_e) {
     # checkout debian packages
@@ -236,18 +246,20 @@ if ($opt_p) {
     close OF;
 }
 # process a dir recursively and copy all debian i386 archives to tree
-if ($opt_s) {
+if ($opt_r) {
+    die "cannot open $opt_r" if ! -d $opt_r;
+
     # open override file for appending
     open OF, ">>". $overridefile or die "cannot open override file: $!\n";
 
     # recurse down dirs and move all archives to deb dist tree
-    find \&add_archive, $opt_s;
+    find \&add_archive, $opt_r;
 
     # close file
     close OF;
 }
 # only add packages to Packages file if -e or -s or -p was given
-if ($opt_e or $opt_s or $opt_p) {
+if ($opt_s) {
     #change to debian root
     chdir $debianroot;
 
