@@ -1,6 +1,6 @@
 Package: builddebiantree
 Version: 1.15.1
-Architecture: amd64
+Architecture: all
 Maintainer: Robert Key robkey@mighty.co.za
 Depends: perl, dpkg, bzip2
 Description: This perl script builds a debian tree from source in svn.
