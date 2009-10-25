@@ -56,7 +56,7 @@ sub movearchivetotree {
     if ($status eq "svn") {
 	# rename debian package to standard name if it comes from svn
 	$fullpathname = $destination . "/" . $archive;
-	system("dpkg-name " . $fullpathname);
+	system("dpkg-name -o " . $fullpathname);
     }
 }
 
