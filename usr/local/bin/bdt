@@ -50,7 +50,8 @@ sub movearchivetotree {
 
     # make directory
     $destination = $debianpool . "/" . $section . "/" . $firstchar . "/" . $packagename;
-    mkdir $debianpool . "/" . $firstchar;
+    mkdir $debianpool . "/" . $section;
+    mkdir $debianpool . "/" . $section . "/" . $firstchar;
     mkdir $destination;
     
     # determine new archive name before it is changed
