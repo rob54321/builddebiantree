@@ -38,6 +38,9 @@ sub movearchivetotree {
     $archive = $_[0];
     $status = $_[1];
 
+    # get section to use as first dir under pool
+    $section = getpackagefield($archive, "Section");
+
     # get package name
     $packagename = getpackagefield($archive, "Package");
 
@@ -46,7 +49,7 @@ sub movearchivetotree {
     $firstchar = substr($packagename, 0, 1);
 
     # make directory
-    $destination = $debianpool . "/" . $firstchar . "/" . $packagename;
+    $destination = $debianpool . "/" . $section . "/" . $firstchar . "/" . $packagename;
     mkdir $debianpool . "/" . $firstchar;
     mkdir $destination;
     
