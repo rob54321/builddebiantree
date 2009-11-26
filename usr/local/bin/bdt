@@ -207,6 +207,7 @@ if ($opt_r) {
 }
 # make Packages file
 if ($opt_s) {
+
     #change to debian root
     chdir $debianroot;
 
@@ -220,10 +221,10 @@ if ($opt_s) {
     system("gzip -f Packages");
     system("mv P Packages");
     system("bzip2 -f -k Packages");
-    
+
     # make the release file
     chdir $debianroot . "/dists/" . $dist;
     unlink("Release");
-    system("apt-ftparchive -o=APT::FTPArchive::Release::Components=main release . > ../Release");
+    system("apt-ftparchive -o=APT::FTPArchive::Release::Components=main -o=APT::FTPArchive::Release::Codename=lenny -o=APT::FTPArchive::Release::Origin=Debian -o=APT::FTPArchive::Release::Suite=stable -o=APT::FTPArchive::Release::Label=Debian -o=APT::FTPArchive::Release::Description=\"my stuff\" -o=APT::FTPArchive::Release::Architectures=\"i386 amd64\" release . > ../Release");
     system("mv ../Release .");
 }
