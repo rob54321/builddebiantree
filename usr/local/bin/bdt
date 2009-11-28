@@ -97,14 +97,14 @@ sub add_archive {
 	# check if it has DEBIAN/control in it
 	if ( -f $archive . "/DEBIAN/control" ) {
 		# this is a debian package build it
-		#print ("Building package: " . $archive . "\n");
-
-		# build it
 		system("dpkg -b " . $archive . " >/dev/null 2>&1");
 		
 		$archive = $archive . ".deb";
 
 		movearchivetotree($archive, "rename");
+		
+		# do not descend futher.
+		$File::Find::prune = 1;
 	}
     }
 }
