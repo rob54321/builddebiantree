@@ -27,7 +27,10 @@ sub getpackagefield {
     return $field;
 }
 
-# the give archive is added to the distribution tree
+# the given archive is added to the distribution tree
+# if status is rename the package.deb renamed to package_version.deb
+# the package was build from source of exported from the repository.
+# if status is debpackage then it is only moved to the archive.
 # all the correct directories are created if necesary
 # the name is then added to the override file
 # parameters passed: archive name, 'rename' to rename package to standard name
@@ -57,16 +60,18 @@ sub movearchivetotree {
     # determine new archive name before it is changed
     $standardarchive = $packagename . "_" . getpackagefield($archive, "Version") . "_" . getpackagefield($archive, "Architecture") . ".deb";
 
-    if ($status eq "svn") {
+    if ($status eq "rename") {
 	# rename debian package to standard name if it comes from svn
-	system("dpkg-name -o " . $archive);
+	system("dpkg-name -o " . $archive . " >/dev/null 2>&1");
     }
     #copy debian package to pool/firstletterofname/name/file.deb
-    system ("cp -v " . $standardarchive . " " . $destination);
+    print $standardarchive, " -> ", $destination, "\n";
+    system ("mv  " . $standardarchive . " " . $destination);
 }
 
-# add_archive will move all archives in the given directory tree and
-# placed in the Debian distribution tree.
+# add_archive will recursively move all .deb files to the debian repository
+# if a directory exists then it is checked for DEBIAN/control file
+# if found the package will be build and inserted into the repository
 # a directory must be passed to this function
 sub add_archive {
     # get current selection if it is a file
@@ -86,6 +91,20 @@ sub add_archive {
 	    if ($architecture eq $arch or $architecture eq "all") {
 		movearchivetotree($archive, "debpackage");
 	    }
+	}
+    } elsif ( -d $archive) {
+	# a directory was found
+	# check if it has DEBIAN/control in it
+	if ( -f $archive . "/DEBIAN/control" ) {
+		# this is a debian package build it
+		#print ("Building package: " . $archive . "\n");
+
+		# build it
+		system("dpkg -b " . $archive . " >/dev/null 2>&1");
+		
+		$archive = $archive . ".deb";
+
+		movearchivetotree($archive, "rename");
 	}
     }
 }
@@ -116,13 +135,13 @@ sub buildtree {
 	    chdir ".." or die "cannot go back";
 
 	    # build debian package
-	    system("dpkg -b " . $name);
+	    system("dpkg -b " . $name . " >/dev/null 2>&1");
 
 	    # get name of package from control file
 	    $archive = $name . ".deb";
 
 	    # move archive to tree
-	    movearchivetotree($archive, "svn");
+	    movearchivetotree($archive, "rename");
 	}
     }
     closedir(DEB);
@@ -175,7 +194,6 @@ if ($opt_x) {
     # set up values of directories
     $debianpool = $debianroot . "pool";
     $packagesdir = $debianroot . "dists/" . $dist . "/main/binary-" . $arch;
-    $packagesfile = $packagesdir . "/Packages";
 
     #mkdir directories
     system("mkdir -p " . $debianroot) if ! -d $debianroot;
@@ -216,7 +234,6 @@ if ($opt_s) {
     chdir $debianroot;
 
     # make Packages file for debian distribution
-    print "scanning\n";
     system("dpkg-scanpackages -m -a " . $arch . " pool > dists/" . $dist . "/main/binary-". $arch . "/Packages");
     
     # make Packages.gzip Packages.bz2
