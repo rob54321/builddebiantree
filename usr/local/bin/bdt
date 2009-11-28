@@ -155,7 +155,7 @@ if (! $ARGV[0]) {
 \t-e extract all from subversion -> build all -> add to distribution tree\
 \t-l list debian packages in repository\
 \t-p extract package from subversion -> build -> add to distribution tree\
-\t-r recurse directory containing archives -> add to repository\
+\t-r recurse directory containing archives, build -> add to repository\
 \t-a architecture i386 or amd64 default i386\
 \t-x destination path of archive\
 \t-s scan packages to make Packages\
