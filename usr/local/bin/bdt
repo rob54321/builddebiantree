@@ -57,20 +57,18 @@ sub movearchivetotree {
     mkdir $debianpool . "/" . $section . "/" . $firstchar;
     mkdir $destination;
     
-    # determine new archive name before it is changed
-    $standardarchive = $packagename . "_" . getpackagefield($archive, "Version") . "_" . getpackagefield($archive, "Architecture") . ".deb";
 
     if ($status eq "rename") {
+	# determine new archive name before it is changed
+	$fullname = $File::Find::dir . "/" . $packagename . "_" . getpackagefield($archive, "Version") . "_" . getpackagefield($archive, "Architecture") . ".deb";
+    
 	# rename debian package to standard name if it comes from svn
 	system("dpkg-name -o " . $archive . " > /dev/null 2>&1" );
-	
-	# mv full name package to repository
-	system ("mv -v ../" . $standardarchive . " " . $destination);
     } else {
         #copy debian package to pool/section/firstletterofname/name/file.deb
-    	#print $standardarchive, " -> ", $destination, "\n";
-    	system ("mv -v " . $standardarchive . " " . $destination);
+	$fullname = $archive;
     }
+    system ("mv -v " . $fullname . " " . $destination);
 }
 
 # add_archive will recursively move all .deb files to the debian repository
@@ -80,8 +78,6 @@ sub movearchivetotree {
 sub add_archive {
     # get current selection if it is a file
     $archive = $File::Find::name;
-
-    # print dir name
     
     # for each .deb file process it
     if( -f $archive) {
@@ -104,7 +100,6 @@ sub add_archive {
 		system("dpkg -b " . $archive . " >/dev/null 2>&1");
 		
 		$archive = $archive . ".deb";
-
 		movearchivetotree($archive, "rename");
 		
 		# do not descend futher.
