@@ -225,6 +225,7 @@ if ($opt_p) {
     buildtree();
 }
 # process a dir recursively and copy all debian i386 archives to tree
+# search each dir for DEBIAN/control. If found build package.
 if ($opt_r) {
     die "cannot open $opt_r" if ! -d $opt_r;
 
