@@ -62,11 +62,15 @@ sub movearchivetotree {
 
     if ($status eq "rename") {
 	# rename debian package to standard name if it comes from svn
-	system("dpkg-name -o " . $archive . " >/dev/null 2>&1");
+	system("dpkg-name -o " . $archive . " > /dev/null 2>&1" );
+	
+	# mv full name package to repository
+	system ("mv -v ../" . $standardarchive . " " . $destination);
+    } else {
+        #copy debian package to pool/section/firstletterofname/name/file.deb
+    	#print $standardarchive, " -> ", $destination, "\n";
+    	system ("mv -v " . $standardarchive . " " . $destination);
     }
-    #copy debian package to pool/firstletterofname/name/file.deb
-    print $standardarchive, " -> ", $destination, "\n";
-    system ("mv  " . $standardarchive . " " . $destination);
 }
 
 # add_archive will recursively move all .deb files to the debian repository
