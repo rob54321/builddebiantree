@@ -5,6 +5,7 @@
 use File::Basename;
 use File::Find;
 use Getopt::Std;
+use Cwd;
 
 # remove working dir
 sub removeworkingdir {
@@ -40,13 +41,15 @@ sub movearchivetotree {
     # archive name in current directory where we are presently
     $archive = $_[0];
     $status = $_[1];
-
+    
     # get section to use as first dir under pool
     $section = getpackagefield($archive, "Section");
 
     # get package name
     $packagename = getpackagefield($archive, "Package");
-
+	$version = getpackagefield($archive, "Version");
+	$architecture = getpackagefield($archive, "Architecture");
+	
     # make dir under pool/firstletter of packagename/packagename
     # get first character of string
     $firstchar = substr($packagename, 0, 1);
@@ -59,16 +62,22 @@ sub movearchivetotree {
     
 
     if ($status eq "rename") {
-	# determine new archive name before it is changed
-	$fullname = $File::Find::dir . "/" . $packagename . "_" . getpackagefield($archive, "Version") . "_" . getpackagefield($archive, "Architecture") . ".deb";
-    
-	# rename debian package to standard name if it comes from svn
-	system("dpkg-name -o " . $archive . " > /dev/null 2>&1" );
-    } else {
-        #copy debian package to pool/section/firstletterofname/name/file.deb
-	$fullname = $archive;
+		# make standard name and move
+		system("dpkg-name -o " . $archive . " > /dev/null 2>&1");
+	
+		# archive name has changed to standard name
+		$archive = dirname($archive) . "/". $packagename . "_". $version . "_" . $architecture . ".deb";
     }
-    system ("mv -v " . $fullname . " " . $destination);
+       
+    #display message for move debpackage or build and move
+    if ($status eq "debpackage") {
+    	print "debpackage ", basename($archive), " -> ", $destination, "\n";
+    } else {
+    	print "source     ", basename($archive), " -> ", $destination, "\n";
+    }
+    
+    system ("mv " . $archive . " " . $destination);
+
 }
 
 # add_archive will recursively move all .deb files to the debian repository
@@ -77,35 +86,44 @@ sub movearchivetotree {
 # a directory must be passed to this function
 sub add_archive {
     # get current selection if it is a file
-    $archive = $File::Find::name;
+    $filename = $File::Find::name;
     
     # for each .deb file process it
-    if( -f $archive) {
-	# get the extension of the file name
-	($file, $dir, $ext) = fileparse($archive, qr/\.[^.]*/);
+    if( -f $filename) {
+		# get the extension of the file name
+		($file, $dir, $ext) = fileparse($filename, qr/\.[^.]*/);
 
-	# move archive to debian dist tree and create dirs
-	# if file is a i386 debian archive
-	if ($ext eq ".deb") {
-	    $architecture = getpackagefield($archive, "Architecture");
-	    if ($architecture eq $arch or $architecture eq "all") {
-		movearchivetotree($archive, "debpackage");
-	    }
-	}
-    } elsif ( -d $archive) {
+		# move archive to debian dist tree and create dirs
+		# if file is a .deb file
+		if ($ext eq ".deb") {
+	    	$architecture = getpackagefield($filename, "Architecture");
+			movearchivetotree($filename, "debpackage");
+		}
+    }
 	# a directory was found
 	# check if it has DEBIAN/control in it
-	if ( -f $archive . "/DEBIAN/control" ) {
+	if ( -f $filename . "/" . "/DEBIAN/control" ) {
 		# this is a debian package build it
-		system("dpkg -b " . $archive . " >/dev/null 2>&1");
+		$parentdir = dirname($filename);
+		$currentdir = basename($filename);
 		
-		$archive = $archive . ".deb";
-		movearchivetotree($archive, "rename");
-		
+		# if we are in the build directory
+		if ($_ eq ".") {
+			# in build directory change to parent to build
+			chdir $parentdir;
+		}
+		$dir = cwd;
+		# print "add_archive: cwd $dir : dpkg -b $currentdir \n";
+
+		system("dpkg -b " . $currentdir . " >/dev/null 2>&1");
+
+		$debname = $filename . ".deb";
+
+		movearchivetotree($debname, "rename");
+	
 		# do not descend futher.
 		$File::Find::prune = 1;
 	}
-    }
 }
 
 # buildtree will recurse a directory and build all the source packages if
@@ -249,3 +267,4 @@ if ($opt_s) {
     system("apt-ftparchive -o=APT::FTPArchive::Release::Components=main -o=APT::FTPArchive::Release::Codename=lenny -o=APT::FTPArchive::Release::Origin=Debian -o=APT::FTPArchive::Release::Suite=stable -o=APT::FTPArchive::Release::Label=Debian -o=APT::FTPArchive::Release::Description=\"my stuff\" -o=APT::FTPArchive::Release::Architectures=\"i386 amd64\" release . > ../Release");
     system("mv ../Release .");
 }
+
