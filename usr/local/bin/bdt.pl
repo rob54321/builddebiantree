@@ -120,46 +120,6 @@ sub add_archive {
 	}
 }
 
-# buildtree will recurse the working directory which
-# can only contain directories with a package in each directory.
-# if the package contains a tar.gz file then this file is extracted first.
-sub buildtree {
-    # open a directory and list dirs inside
-    opendir (DEB, $workingdir) or die "no dir: $!";
-    chdir $workingdir;
-
-    # descend into each subdirectory under the working dir DEB.
-    foreach $name (readdir(DEB)) {
-	if ($name ne ".." and $name ne "."){
-	    print "Processing: ", $name, "\n";
-
-	    chdir $name or die "cannot change to ",$name, ": $!";
-	    
-            # untar file if it exists
-	    if (-e "contents.tar.gz") {
-		system("tar -xpzf contents.tar.gz") ;
-
-		# remove tar file
-		unlink "contents.tar.gz";
-	    }
-	    # change back
-	    chdir ".." or die "cannot go back";
-
-	    # build debian package
-	    system("dpkg -b " . $name . " >/dev/null 2>&1");
-
-	    # get name of package from control file
-	    $archive = $name . ".deb";
-
-	    # move archive to tree
-	    movearchivetotree($archive, "rename");
-	}
-    }
-    closedir(DEB);
-    
-    # remove the working directory
-    removeworkingdir();
-}
 
 # main entry point
 # if no options print message
