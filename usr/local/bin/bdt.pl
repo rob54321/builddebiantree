@@ -34,12 +34,8 @@ sub getpackagefield {
 # destination = debianpool / section / firstchar / packagename
 # any architecture is moved.
 sub movearchivetotree {
-    my($archive);
+    my($archive, $status) = @_;
 
-    # archive name in current directory where we are presently
-    $archive = $_[0];
-    $status = $_[1];
-    
     # get section to use as first dir under pool
     $section = getpackagefield($archive, "Section");
 
@@ -111,7 +107,7 @@ sub add_archive {
 			chdir $parentdir;
 		}
 		$dir = cwd;
-		# print "add_archive: cwd $dir : dpkg -b $currentdir \n";
+		#print "add_archive: cwd $dir : dpkg -b $currentdir \n";
 
 		system("dpkg -b " . $currentdir . " >/dev/null 2>&1");
 
@@ -226,16 +222,17 @@ if ($opt_e) {
     $command = $exportcommand . " " . $workingdir;
     system($command);
 
-    buildtree();
+    find \&add_archive, $workingdir;
 }
 
 if ($opt_p) {
     # checkout only the one package
-
-    $command = $exportcommand . $opt_p . " " . $workingdir . "/" . $opt_p;
+	$outputdir = $workingdir . "/" . $opt_p;
+    $command = $exportcommand . $opt_p . " " . $outputdir;
     system($command);
 
-    buildtree();
+    # buildtree();
+    find \&add_archive, $outputdir;
 }
 # process a dir recursively and copy all debian i386 archives to tree
 # search each dir for DEBIAN/control. If found build package.
