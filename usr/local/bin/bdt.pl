@@ -82,9 +82,10 @@ sub movearchivetotree {
 }
 
 # add_archive will recursively move all .deb files to the debian repository
-# if a directory exists then it is checked for DEBIAN/control file
-# if found the package will be build and inserted into the repository
-# a directory must be passed to this function
+# it will also check each directory for  DEBIAN/control file. If this file exists
+# the package will be built and the archive will be saved in the same directory
+# as the archive directory. The archive is renamed by movearchivetotree when insserted
+# into the repository.
 sub add_archive {
     # get current selection if it is a file
     $filename = $File::Find::name;
