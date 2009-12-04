@@ -9,10 +9,7 @@ use Cwd;
 
 # remove working dir
 sub removeworkingdir {
-    # remove working dir
-    chdir $workingdir;
-    chdir "..";
-    system("rm -rf *");
+    system("rm -rf " . $workingdir);
 }
 
 # given an archive name this function returns the package name or architecture
@@ -127,9 +124,9 @@ sub add_archive {
 	}
 }
 
-# buildtree will recurse a directory and build all the source packages if
-# necesary and pack them into a Debian distribution tree in the correct
-# directories.
+# buildtree will recurse the working directory which
+# can only contain directories with a package in each directory.
+# if the package contains a tar.gz file then this file is extracted first.
 sub buildtree {
     # open a directory and list dirs inside
     opendir (DEB, $workingdir) or die "no dir: $!";
@@ -163,6 +160,8 @@ sub buildtree {
 	}
     }
     closedir(DEB);
+    
+    # remove the working directory
     removeworkingdir();
 }
 
@@ -183,7 +182,7 @@ if (! $ARGV[0]) {
 # default values
 $dist = "lenny";
 $arch = "i386";
-$workingdir = "/mnt/hdint/robert/tmp/debian";
+$workingdir = "/tmp/debian";
 $repository = "file:///home/robert/svn/debian/";
 $exportcommand = "svn --force -q export " . $repository;
 
@@ -221,9 +220,9 @@ if ($opt_x) {
 }
 
     
-# checkout all debian packages, build and place in tree
+# checkout all debian packages from svn/debian, build and place in tree
 if ($opt_e) {
-    # checkout debian packages
+    # export all debian packages in svn/debian to working directory
     $command = $exportcommand . " " . $workingdir;
     system($command);
 
