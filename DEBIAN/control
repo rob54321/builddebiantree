@@ -6,4 +6,6 @@ Depends: perl, dpkg, bzip2, tar, dpkg-dev, apt-utils, subversion
 Section: myown
 Priority: optional
 Description: This perl script builds a debian tree from source in svn.
-	This script extracts source from svn, builds debian packages, makes the correct directory tree for a debian distribution and places all deb files there.
+	This script extracts source from svn, builds debian packages,
+	 makes the correct directory tree for a debian distribution and places all deb files there.
+	 The programme also recurses directories for debian packages and places them in the tree.
