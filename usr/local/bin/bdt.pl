@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/perl -w
 # this programme exports all debian source packages from svn and
 # builds the debian packages, places then in the debian tree, builds the
 # Packages file, updates apt-get.
@@ -28,13 +28,14 @@ sub getpackagefield {
     return $field;
 }
 
-# the given archive is added to the distribution tree
-# if status is rename the package.deb renamed to package_version.deb
-# the package was build from source of exported from the repository.
-# if status is debpackage then it is only moved to the archive.
-# all the correct directories are created if necesary
-# the name is then added to the override file
-# parameters passed: archive name, 'rename' to rename package to standard name
+# movearchivetotree:
+# first parameter is full path to the archive
+# second parameter is status = debpackage | rename
+# debpackage means the archive is in standard form and needs to be moved
+# rename means the archive must be renamed to standard form and then moved.
+# all destination directories are created
+# destination = debianpool / section / firstchar / packagename
+# any architecture is moved.
 sub movearchivetotree {
     my($archive);
 
@@ -96,7 +97,6 @@ sub add_archive {
 		# move archive to debian dist tree and create dirs
 		# if file is a .deb file
 		if ($ext eq ".deb") {
-	    	$architecture = getpackagefield($filename, "Architecture");
 			movearchivetotree($filename, "debpackage");
 		}
     }
