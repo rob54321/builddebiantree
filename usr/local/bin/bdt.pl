@@ -13,7 +13,7 @@ sub makeCompressedPackages {
 	my($arch) = $_[0];
 	
 	# make Packages.gzip Packages.bz2
-	my($packagesdir) = $debianroot . "dists/" . $dist . "/main/binary-" . $arch;
+	my($packagesdir) = $debianroot . "/dists/" . $dist . "/main/binary-" . $arch;
 	
 	# save current dir
 	my($currentdir) = cwd;
@@ -185,6 +185,7 @@ $dist = "lenny";
 $workingdir = "/tmp/debian";
 $repository = "file:///home/robert/svn/debian/";
 $exportcommand = "svn --force -q export " . $repository;
+$debianroot = "/mnt/linux/mydebian";
 
 # get command line options
 getopts('a:d:elp:r:x:d:s');
@@ -205,21 +206,22 @@ if ($opt_a) {
     $arch = $opt_a;
 }
 
-# set up destinaton
+# set up destinaton if given on command line
 if ($opt_x) {
-    $debianroot = $opt_x . "/";
-    # set up values of directories
-    $debianpool = $debianroot . "pool";
-
-    #mkdir directories
-    system("mkdir -p " . $debianroot) if ! -d $debianroot;
-    system("mkdir -p " . $debianpool) if ! -d $debianpool;
-    system("mkdir -p " . $workingdir) if ! -d $workingdir;
-    foreach $arch (@all_arch) {
-    	$packagesdir = $debianroot . "dists/" . $dist . "/main/binary-" . $arch;
-    	system("mkdir -p " . $packagesdir) if ! -d $packagesdir;
-    }
+    	$debianroot = $opt_x;
 }
+
+# set up values of directories
+$debianpool = $debianroot . "/pool";
+
+#mkdir directories
+system("mkdir -p " . $debianroot) if ! -d $debianroot;
+system("mkdir -p " . $debianpool) if ! -d $debianpool;
+system("mkdir -p " . $workingdir) if ! -d $workingdir;
+foreach $arch (@all_arch) {
+  	$packagesdir = $debianroot . "/dists/" . $dist . "/main/binary-" . $arch;
+   	system("mkdir -p " . $packagesdir) if ! -d $packagesdir;
+}	
 
     
 # checkout all debian packages from svn/debian, build and place in tree
