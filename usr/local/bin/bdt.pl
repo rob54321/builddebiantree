@@ -7,21 +7,41 @@ use File::Find;
 use Getopt::Std;
 use Cwd;
 
+# sub to make Packages.gz and Packages.bz2 from the packages file
+# architecture must be passed as a parameter
+sub makeCompressedPackages {
+	my($arch) = $_[0];
+	
+	# make Packages.gzip Packages.bz2
+	my($packagesdir) = $debianroot . "dists/" . $dist . "/main/binary-" . $arch;
+	
+	# save current dir
+	my($currentdir) = cwd;
+    chdir $packagesdir;
+    system("cp Packages P");
+    system("gzip -f Packages");
+    system("mv P Packages");
+    system("bzip2 -f -k Packages");
+    
+    # set back to previous dir
+    chdir $currentdir;
+}
+
 # remove working dir
 sub removeworkingdir {
     system("rm -rf " . $workingdir);
 }
 
-# given an archive name this function returns the package name or architecture
+# given an archive name this function returns the control field
 sub getpackagefield {
-    $archive = $_[0];
-    $field = $_[1];
+	my ($archive, $field) = @_;
 
     # get the package name from the control file
-    @command = ("dpkg-deb -f", $archive, $_[1]);
+    @command = ("dpkg-deb -f ", $archive, $field);
     $field = `@command`;
     chomp $field;
 
+	# return control field from package
     return $field;
 }
 
@@ -89,20 +109,43 @@ sub add_archive {
 		($file, $dir, $ext) = fileparse($filename, qr/\.[^.]*/);
 
 		# move archive to debian dist tree and create dirs
-		# if file is a .deb file
-		if ($ext eq ".deb") {
-			movearchivetotree($filename, "debpackage");
-		}
+		# if file is a .deb file and arch is defined
+		# then only move for given arch
+		if ($arch) {
+			# get arch of package
+			$currentarch = getpackagefield($filename, "Architecture");
+			if ($ext eq ".deb" && ($currentarch eq $arch || $currentarch eq "all")) {
+				movearchivetotree($filename, "debpackage");
+			}
+    	} else {
+    		# arch is undefined move all .deb files to archive
+    		if ($ext eq ".deb") {
+    			movearchivetotree($filename, "debpackage");
+    		}
+    	}
     }
 	# a directory was found
 	# check if it has DEBIAN/control in it
 	if ( -f $filename . "/" . "/DEBIAN/control" ) {
 		# this is a debian package build it
+		$currentdir = $_;
 		$parentdir = dirname($filename);
 		$currentdir = basename($filename);
-		
+
+		# if arch is defined and it the source arch then build and move
+		# get architecture from control file
+		if ($arch) {
+			$arch_found = "false";
+			open( CONTROL, '<', $filename . "/" . "DEBIAN/control") or die $!;
+			while (<CONTROL>) {
+				if (/Architecture: *$arch/ || /Architecture: *all/) {
+					$arch_found = "true";
+				}
+			}
+			if ($arch_found eq "false") {$File::Find::prune = 1; return}
+		}
 		# if we are in the build directory
-		if ($_ eq ".") {
+		if ($currentdir eq ".") {
 			# in build directory change to parent to build
 			chdir $parentdir;
 		}
@@ -137,7 +180,7 @@ if (! $ARGV[0]) {
 }
 # default values
 $dist = "lenny";
-$arch = "i386";
+@all_arch = ("amd64", "i386");
 $workingdir = "/tmp/debian";
 $repository = "file:///home/robert/svn/debian/";
 $exportcommand = "svn --force -q export " . $repository;
@@ -166,13 +209,15 @@ if ($opt_x) {
     $debianroot = $opt_x . "/";
     # set up values of directories
     $debianpool = $debianroot . "pool";
-    $packagesdir = $debianroot . "dists/" . $dist . "/main/binary-" . $arch;
 
     #mkdir directories
     system("mkdir -p " . $debianroot) if ! -d $debianroot;
     system("mkdir -p " . $debianpool) if ! -d $debianpool;
     system("mkdir -p " . $workingdir) if ! -d $workingdir;
-    system("mkdir -p " . $packagesdir) if ! -d $packagesdir;
+    foreach $arch (@all_arch) {
+    	$packagesdir = $debianroot . "dists/" . $dist . "/main/binary-" . $arch;
+    	system("mkdir -p " . $packagesdir) if ! -d $packagesdir;
+    }
 }
 
     
@@ -191,7 +236,6 @@ if ($opt_p) {
     $command = $exportcommand . $opt_p . " " . $outputdir;
     system($command);
 
-    # buildtree();
     find \&add_archive, $outputdir;
 }
 # process a dir recursively and copy all debian i386 archives to tree
@@ -199,7 +243,7 @@ if ($opt_p) {
 if ($opt_r) {
     die "cannot open $opt_r" if ! -d $opt_r;
 
-    # recurse down dirs and move all archives to deb dist tree
+    # recurse down dirs and move all
     find \&add_archive, $opt_r;
 }
 # make Packages file
@@ -208,16 +252,17 @@ if ($opt_s) {
     #change to debian root
     chdir $debianroot;
 
-    # make Packages file for debian distribution
-    system("dpkg-scanpackages -m -a " . $arch . " pool > dists/" . $dist . "/main/binary-". $arch . "/Packages");
-    
-    # make Packages.gzip Packages.bz2
-    chdir $packagesdir;
-    system("cp Packages P");
-    system("gzip -f Packages");
-    system("mv P Packages");
-    system("bzip2 -f -k Packages");
-
+	# arch is defined then scan only for that arch, else do for all_arch
+	if($arch) {
+		system("dpkg-scanpackages -m -a " . $arch . " pool > dists/" . $dist . "/main/binary-". $arch . "/Packages");
+		makeCompressedPackages($arch);
+	} else {
+		foreach $arch (@all_arch) {
+			system("dpkg-scanpackages -m -a " . $arch . " pool > dists/" . $dist . "/main/binary-". $arch . "/Packages");
+			makeCompressedPackages($arch);
+		}
+	}
+     
     # make the release file
     chdir $debianroot . "/dists/" . $dist;
     unlink("Release");
