@@ -102,6 +102,7 @@ sub movearchivetotree {
 sub add_archive {
     # get current selection if it is a file
     $filename = $File::Find::name;
+    $currentworkingdir = $_;
     
     # for each .deb file process it
     if( -f $filename) {
@@ -145,7 +146,7 @@ sub add_archive {
 			if ($arch_found eq "false") {$File::Find::prune = 1; return}
 		}
 		# if we are in the build directory
-		if ($currentdir eq ".") {
+		if ($currentworkingdir eq ".") {
 			# in build directory change to parent to build
 			chdir $parentdir;
 		}
