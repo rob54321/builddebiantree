@@ -129,7 +129,6 @@ sub add_archive {
 	# check if it has DEBIAN/control in it
 	if ( -f $filename . "/" . "/DEBIAN/control" ) {
 		# this is a debian package build it
-		$currentdir = $_;
 		$parentdir = dirname($filename);
 		$currentdir = basename($filename);
 
