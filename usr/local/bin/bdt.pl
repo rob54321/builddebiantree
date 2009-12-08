@@ -110,7 +110,7 @@ sub add_archive {
 		# move archive to debian dist tree and create dirs
 		# if file is a .deb file and arch is defined
 		# then only move for given arch
-		if ($arch) {
+		if ($arch && ($ext eq ".deb")) {
 			# get arch of package
 			$currentarch = getpackagefield($filename, "Architecture");
 			if ($ext eq ".deb" && ($currentarch eq $arch || $currentarch eq "all")) {
