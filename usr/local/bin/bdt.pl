@@ -70,10 +70,7 @@ sub movearchivetotree {
 
     # make directory
     $destination = $debianpool . "/" . $section . "/" . $firstchar . "/" . $packagename;
-    mkdir $debianpool . "/" . $section;
-    mkdir $debianpool . "/" . $section . "/" . $firstchar;
-    mkdir $destination;
-    
+    system("mkdir -p " . $destination) if ! -d $destination;
 
     if ($status eq "rename") {
 		# make standard name and move
@@ -86,11 +83,12 @@ sub movearchivetotree {
     #display message for move debpackage or build and move
     if ($status eq "debpackage") {
     	print "debpackage ", basename($archive), " -> ", $destination, "\n";
+    	system ("cp " . $archive . " " . $destination);
     } else {
     	print "source     ", basename($archive), " -> ", $destination, "\n";
+	    system ("mv " . $archive . " " . $destination);
     }
     
-    system ("mv " . $archive . " " . $destination);
 
 }
 
