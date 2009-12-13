@@ -173,7 +173,8 @@ if (! $ARGV[0]) {
 \t-a architecture i386 or amd64 default i386\
 \t-x destination path of archive\
 \t-s scan packages to make Packages\
-\t-d distribution etch or lenny or squeeze, testing. Default lenny\n";
+\t-d distribution etch or lenny or squeeze, testing. Default lenny\
+\t-S full path of subversion repository\n";
     exit();
 }
 # default values
@@ -181,11 +182,16 @@ $dist = "lenny";
 @all_arch = ("amd64", "i386");
 $workingdir = "/tmp/debian";
 $repository = "file:///home/robert/svn/debian/";
-$exportcommand = "svn --force -q export " . $repository;
 $debianroot = "/mnt/linux/mydebian";
 
 # get command line options
-getopts('a:d:elp:r:x:d:s');
+getopts('S:a:d:elp:r:x:d:s');
+
+# set subversion respository
+if ($opt_S) {
+	$repository = "file://" . $opt_S . "/debian/";
+}
+$exportcommand = "svn --force -q export " . $repository;
 
 # list all packages and exit
 if ($opt_l) {
