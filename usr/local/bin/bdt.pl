@@ -166,15 +166,15 @@ sub add_archive {
 # if no options print message
 if (! $ARGV[0]) {
     print "usage: builddebiantree [options] filelist\
-\t-e extract all from subversion -> build all -> add to distribution tree\
-\t-l list debian packages in repository\
-\t-p extract package from subversion -> build -> add to distribution tree\
-\t-r recurse directory containing archives, build -> add to repository\
-\t-a architecture i386 or amd64 default i386\
-\t-x destination path of archive\
-\t-s scan packages to make Packages\
-\t-d distribution etch or lenny or squeeze, testing. Default lenny\
-\t-S full path of subversion repository\n";
+-e extract all from subversion -> build all -> add to distribution tree\
+-l list debian packages in repository\
+-p extract package from subversion -> build -> add to distribution tree\
+-r recurse directory containing archives, build -> add to repository\
+-a architecture i386 or amd64 default i386\
+-x destination path of archive default: /mnt/linux/mydebian\
+-s scan packages to make Packages\
+-d distribution etch or lenny or squeeze, testing. Default: lenny\
+-S full path of subversion repository default: /home/robert/svn/debian\n";
     exit();
 }
 # default values
