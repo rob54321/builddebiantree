@@ -7,6 +7,30 @@ use File::Find;
 use Getopt::Std;
 use Cwd;
 
+# sub to replace a link with the files it points to.
+sub replaceLink {
+	my($link) = $File::Find::name;
+	$parentdir = dirname($link);
+	$current = basename($link);
+	
+	# check if link is a link
+	if ( -L $link) {
+		print "\$parentdir: $parentdir\n";
+		print "\$current: $current\n";
+	}
+}
+
+# sub to insert the contents of packages for the live system.
+# the name of the directory in which the package resides must be
+# appended by -live.
+# the first paramter is the full directory name
+sub insertContents {
+	my($filename) = $_[0];
+	
+	# search for all links in sub directories of filename
+	find \&replaceLink, $filename;
+	
+} 
 # sub to make Packages.gz and Packages.bz2 from the packages file
 # architecture must be passed as a parameter
 sub makeCompressedPackages {
@@ -147,6 +171,11 @@ sub add_archive {
 			# in build directory change to parent to build
 			chdir $parentdir;
 		}
+		
+		# if the directory name in which the package resides is appended by "-live"
+		# then all links must be downloaded into the package directory before building
+		# it may also be necessary to untar files.
+		if (/-live$/) { insertContents $filename; }
 		$dir = cwd;
 		#print "add_archive: cwd $dir : dpkg -b $currentdir \n";
 
