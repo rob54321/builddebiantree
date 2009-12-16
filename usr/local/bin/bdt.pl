@@ -36,6 +36,9 @@ sub replaceLink {
 			print "cp -a " . $original . " " . $parentdir . "\n";
 			system("cp -a " . $original . " " . $parentdir);
 		}
+		# stop descending
+		$File::Find::prune = 1;
+		
 		# remove the link
 		unlink($link);
 	}
