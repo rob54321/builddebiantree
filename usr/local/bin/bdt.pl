@@ -193,7 +193,7 @@ if ($opt_S) {
 }
 $exportcommand = "svn --force -q export " . $repository;
 
-# list all packages and exit
+# list all packages
 if ($opt_l) {
     $command = "svn -v list " . $repository;
     system($command);
@@ -234,6 +234,7 @@ if ($opt_e) {
     system($command);
 
     find \&add_archive, $workingdir;
+    removeworkingdir;
 }
 
 if ($opt_p) {
@@ -243,6 +244,7 @@ if ($opt_p) {
     system($command);
 
     find \&add_archive, $outputdir;
+    removeworkingdir;
 }
 # process a dir recursively and copy all debian i386 archives to tree
 # search each dir for DEBIAN/control. If found build package.
