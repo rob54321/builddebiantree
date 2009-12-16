@@ -10,13 +10,34 @@ use Cwd;
 # sub to replace a link with the files it points to.
 sub replaceLink {
 	my($link) = $File::Find::name;
+	
+	# store current dir
+	my($currentdir) = cwd;
+	
+	# get parent dir of link
 	$parentdir = dirname($link);
-	$current = basename($link);
 	
 	# check if link is a link
-	if ( -L $link) {
-		print "\$parentdir: $parentdir\n";
-		print "\$current: $current\n";
+	if ( -l $link) {
+		# get original file that link points to
+		$original = readlink $link;
+		
+		# if file is a tar file untar it
+		if ($original =~ /.tar.gz$/) {
+			# .tar.gz file untar it
+			system("tar -xvzf " . $original);
+		}
+		elsif ($original =~ /.bin$/) {
+			# .bin file execute it
+			system($original);
+		}
+		else {
+			# copy the file or directory to here
+			print "cp -a " . $original . " " . $parentdir . "\n";
+			system("cp -a " . $original . " " . $parentdir);
+		}
+		# remove the link
+		unlink($link);
 	}
 }
 
@@ -175,7 +196,7 @@ sub add_archive {
 		# if the directory name in which the package resides is appended by "-live"
 		# then all links must be downloaded into the package directory before building
 		# it may also be necessary to untar files.
-		if (/-live$/) { insertContents $filename; }
+		if ($filename =~ /-live$/) { insertContents $filename; }
 		$dir = cwd;
 		#print "add_archive: cwd $dir : dpkg -b $currentdir \n";
 
