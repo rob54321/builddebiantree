@@ -6,6 +6,7 @@ use File::Basename;
 use File::Find;
 use Getopt::Std;
 use Cwd;
+use File::Glob ':glob';
 
 # sub to replace a link with the files it points to.
 # this is used for the live system since files
@@ -122,27 +123,47 @@ sub movearchivetotree {
     $destination = $debianpool . "/" . $section . "/" . $firstchar . "/" . $packagename;
     system("mkdir -p " . $destination) if ! -d $destination;
 
-	# delete previous versions of files in the repository with the same packagename, architecture in the destination
-	system("rm -fv " . $destination . "/" . $packagename . "*" . $architecture . ".deb");
+	# compare the version of the file being inserted to the existing versions
+	# in the destination directory for the same architecture.
+	# Do not insert an older version, delete and older version in the repository
+	# get version of package in the archive
+	$currentdir = cwd;
+	chdir $destination;
+	@rep_files = <*$architecture.deb>;
+	$insert_file = "true";
 	
-    if ($status eq "rename") {
-		# make standard name and move
-		system("dpkg-name -o " . $archive . " > /dev/null 2>&1");
+	# if the version of the found file is less than all the versions in the repository
+	# do not insert
+	foreach $file (@rep_files) {
+		# compare versions
+		$version_in_repository = getpackagefield($file, "Version");
+		if ($version le $version_in_repository) {
+			$insert_file = "false";
+		}
+	}
+	chdir $currentdir;
 	
-		# archive name has changed to standard name
-		$archive = dirname($archive) . "/". $packagename . "_". $version . "_" . $architecture . ".deb";
-    }
+	if ($insert_file eq "true") {
+		# delete previous versions of files in the repository with the same packagename, architecture in the destination
+		system("rm -fv " . $destination . "/" . $packagename . "*" . $architecture . ".deb");
+	
+    	if ($status eq "rename") {
+			# make standard name and move
+			system("dpkg-name -o " . $archive . " > /dev/null 2>&1");
+	
+			# archive name has changed to standard name
+			$archive = dirname($archive) . "/". $packagename . "_". $version . "_" . $architecture . ".deb";
+    	}
        
-    #display message for move debpackage or build and move
-    if ($status eq "debpackage") {
-    	print "debpackage ", basename($archive), " -> ", $destination, "\n";
-    	system ("cp " . $archive . " " . $destination);
-    } else {
-    	print "source     ", basename($archive), " -> ", $destination, "\n";
-	    system ("mv " . $archive . " " . $destination);
+    	#display message for move debpackage or build and move
+    	if ($status eq "debpackage") {
+    		print "debpackage ", basename($archive), " -> ", $destination, "\n";
+    		system ("cp " . $archive . " " . $destination);
+    	} else {
+    		print "source     ", basename($archive), " -> ", $destination, "\n";
+	    	system ("mv " . $archive . " " . $destination);
+    	}
     }
-    
-
 }
 
 # add_archive will recursively move all .deb files to the debian repository
