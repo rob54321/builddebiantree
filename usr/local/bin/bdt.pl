@@ -8,6 +8,8 @@ use Getopt::Std;
 use Cwd;
 
 # sub to replace a link with the files it points to.
+# this is used for the live system since files
+# cannot be installed during the building of a live system.
 sub replaceLink {
 	my($link) = $File::Find::name;
 	
@@ -120,6 +122,9 @@ sub movearchivetotree {
     $destination = $debianpool . "/" . $section . "/" . $firstchar . "/" . $packagename;
     system("mkdir -p " . $destination) if ! -d $destination;
 
+	# delete previous versions of files in the repository with the same packagename, architecture in the destination
+	system("rm -fv " . $destination . "/" . $packagename . "*" . $architecture . ".deb");
+	
     if ($status eq "rename") {
 		# make standard name and move
 		system("dpkg-name -o " . $archive . " > /dev/null 2>&1");
