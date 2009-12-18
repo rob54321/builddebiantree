@@ -320,11 +320,11 @@ if ($opt_s) {
 
 	# arch is defined then scan only for that arch, else do for all_arch
 	if($arch) {
-		system("dpkg-scanpackages -m -a " . $arch . " pool > dists/" . $dist . "/main/binary-". $arch . "/Packages");
+		system("dpkg-scanpackages -a " . $arch . " pool > dists/" . $dist . "/main/binary-". $arch . "/Packages");
 		makeCompressedPackages($arch);
 	} else {
 		foreach $arch (@all_arch) {
-			system("dpkg-scanpackages -m -a " . $arch . " pool > dists/" . $dist . "/main/binary-". $arch . "/Packages");
+			system("dpkg-scanpackages -a " . $arch . " pool > dists/" . $dist . "/main/binary-". $arch . "/Packages");
 			makeCompressedPackages($arch);
 		}
 	}
