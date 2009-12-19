@@ -80,7 +80,7 @@ sub makeCompressedPackages {
 
 # remove working dir
 sub removeworkingdir {
-    system("rm -rf " . $workingdir);
+    system("rm -rf " . $workingdir . "/*");
 }
 
 # given an archive name this function returns the control field
@@ -312,12 +312,15 @@ if ($opt_e) {
 }
 
 if ($opt_p) {
-    # checkout only the one package
-	$outputdir = $workingdir . "/" . $opt_p;
-    $command = $exportcommand . $opt_p . " " . $outputdir;
-    system($command);
-
-    find \&add_archive, $outputdir;
+	# empty working dir incase
+    removeworkingdir;
+    # checkout each package in list $opt_p is a space separated string
+    @package_list = split / /, $opt_p;
+    foreach $package (@package_list) {
+    	$command = $exportcommand . $package . " " . $workingdir . "/" . $package;
+    	system($command);
+    }
+    find \&add_archive, $workingdir;
     removeworkingdir;
 }
 # process a dir recursively and copy all debian i386 archives to tree
