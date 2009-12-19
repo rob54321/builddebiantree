@@ -242,8 +242,8 @@ if (! $ARGV[0]) {
     print "usage: builddebiantree [options] filelist\
 -e extract all from subversion -> build all -> add to distribution tree\
 -l list debian packages in repository\
--p extract package from subversion -> build -> add to distribution tree\
--r recurse directory containing archives, build -> add to repository\
+-p extract package list from subversion -> build -> add to distribution tree\
+-r recurse directory list containing archives, build -> add to repository\
 -a architecture i386 or amd64 default i386\
 -x destination path of archive default: /mnt/linux/mydebian\
 -s scan packages to make Packages\
@@ -325,11 +325,15 @@ if ($opt_p) {
 }
 # process a dir recursively and copy all debian i386 archives to tree
 # search each dir for DEBIAN/control. If found build package.
+# the opt_r can be a space separated directory list
 if ($opt_r) {
-    die "cannot open $opt_r" if ! -d $opt_r;
+	@directory_list = split / /, $opt_r;
+	foreach $directory (@directory_list) {
+    	die "cannot open $directory" if ! -d $directory;
 
-    # recurse down dirs and move all
-    find \&add_archive, $opt_r;
+    	# recurse down dirs and move all
+    	find \&add_archive, $directory;
+	}
 }
 # make Packages file
 if ($opt_s) {
