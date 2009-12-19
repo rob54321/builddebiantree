@@ -178,21 +178,18 @@ sub add_archive {
     
     # for each .deb file process it
     if( -f $filename) {
-		# get the extension of the file name
-		($file, $dir, $ext) = fileparse($filename, qr/\.[^.]*/);
-
 		# move archive to debian dist tree and create dirs
 		# if file is a .deb file and arch is defined
 		# then only move for given arch
-		if ($arch && ($ext eq ".deb")) {
+		if ($arch && ($filename =~ /.deb$/)) {
 			# get arch of package
 			$currentarch = getpackagefield($filename, "Architecture");
-			if ($ext eq ".deb" && ($currentarch eq $arch || $currentarch eq "all")) {
+			if (($filename =~ /.deb$/) && ($currentarch eq $arch || $currentarch eq "all")) {
 				movearchivetotree($filename, "debpackage");
 			}
     	} else {
     		# arch is undefined move all .deb files to archive
-    		if ($ext eq ".deb") {
+    		if ($filename =~ /.deb$/) {
     			movearchivetotree($filename, "debpackage");
     		}
     	}
@@ -226,8 +223,6 @@ sub add_archive {
 		# then all links must be downloaded into the package directory before building
 		# it may also be necessary to untar files.
 		if ($filename =~ /-live$/) { insertContents $filename; }
-		$dir = cwd;
-		#print "add_archive: cwd $dir : dpkg -b $currentdir \n";
 
 		system("dpkg -b " . $currentdir . " >/dev/null 2>&1");
 
