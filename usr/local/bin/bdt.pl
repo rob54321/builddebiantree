@@ -315,7 +315,7 @@ if ($opt_p) {
 	# empty working dir incase
     removeworkingdir;
     # checkout each package in list $opt_p is a space separated string
-    @package_list = split / /, $opt_p;
+    @package_list = split /\s+/, $opt_p;
     foreach $package (@package_list) {
     	$command = $exportcommand . $package . " " . $workingdir . "/" . $package;
     	system($command);
@@ -327,7 +327,7 @@ if ($opt_p) {
 # search each dir for DEBIAN/control. If found build package.
 # the opt_r can be a space separated directory list
 if ($opt_r) {
-	@directory_list = split / /, $opt_r;
+	@directory_list = split /\s+/, $opt_r;
 	foreach $directory (@directory_list) {
     	die "cannot open $directory" if ! -d $directory;
 
