@@ -143,7 +143,7 @@ sub movearchivetotree {
 	}
 	chdir $currentdir;
 	
-	if ($insert_file eq "true") {
+	if ($force eq "true" || $insert_file eq "true") {
 		# delete previous versions of files in the repository with the same packagename, architecture in the destination
 		system("rm -fv " . $destination . "/" . $packagename . "*" . $architecture . ".deb");
 	
@@ -248,7 +248,8 @@ if (! $ARGV[0]) {
 -x destination path of archive default: /mnt/linux/mydebian\
 -s scan packages to make Packages\
 -d distribution etch or lenny or squeeze, testing. Default: lenny\
--S full path of subversion repository default: /mnt/linux/jbackup/svn/debian\n";
+-S full path of subversion repository default: /mnt/linux/jbackup/svn/debian\n;
+-f force insertion of package into repository default: false\n";
     exit();
 }
 # default values
@@ -257,10 +258,15 @@ $dist = "lenny";
 $workingdir = "/tmp/debian";
 $repository = "file:///mnt/linux/jbackup/svn/debian/";
 $debianroot = "/mnt/linux/mydebian";
+$force = "false";
 
 # get command line options
-getopts('S:a:d:elp:r:x:d:s');
+getopts('fS:a:d:elp:r:x:d:s');
 
+# set force option
+if ($opt_f) {
+	$force = "true";
+}
 # set subversion respository
 if ($opt_S) {
 	$repository = "file://" . $opt_S . "/debian/";
