@@ -248,7 +248,7 @@ if (! $ARGV[0]) {
 -x destination path of archive default: /mnt/linux/mydebian\
 -s scan packages to make Packages\
 -d distribution etch or lenny or squeeze, testing. Default: lenny\
--S full path of subversion repository default: /mnt/linux/jbackup/svn/debian\n;
+-S full path of subversion repository default: /mnt/linux/jbackup/svn/debian\n
 -f force insertion of package into repository default: false\n";
     exit();
 }
