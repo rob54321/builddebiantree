@@ -235,35 +235,39 @@ sub add_archive {
 	}
 }
 
-
-# main entry point
-# if no options print message
-if (! $ARGV[0]) {
+sub usage {
     print "usage: builddebiantree [options] filelist\
 -e extract all from subversion -> build all -> add to distribution tree\
 -l list debian packages in repository\
 -p extract package list from subversion -> build -> add to distribution tree\
 -r recurse directory list containing archives, build -> add to repository\
 -a architecture i386 or amd64 default i386\
--x destination path of archive default: /mnt/linux/mydebian\
+-x destination path of archive default: $debianroot\
 -s scan packages to make Packages\
--d distribution etch or lenny or squeeze, testing. Default: lenny\
--S full path of subversion repository default: /mnt/linux/jbackup/svn/debian\n
--f force insertion of package into repository default: false\n";
+-d distribution etch or lenny or squeeze, testing. Default: $dist\
+-S full path of subversion repository default: $repository\n
+-f force insertion of package into repository default: $force\n";
     exit();
+
 }
+# main entry point
 # default values
 $dist = "lenny";
 @all_arch = ("amd64", "i386");
 $workingdir = "/tmp/debian";
-$repository = "file:///mnt/linux/jbackup/svn/debian/";
-$debianroot = "/mnt/linux/mydebian";
+$repository = "file:///mnt/hdd/jbackup/svn/debian/";
+$debianroot = "/mnt/hdd/mydebian";
 $force = "false";
+
+# if no options print message
+if (! $ARGV[0]) {
+	usage;
+}
 
 # get command line options
 getopts('fS:a:d:elp:r:x:d:s');
 
-# set force option
+# set force option to force a package to be inserted into mydebian
 if ($opt_f) {
 	$force = "true";
 }
