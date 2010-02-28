@@ -222,7 +222,8 @@ sub add_archive {
 		# if the directory name in which the package resides is appended by "-live"
 		# then all links must be downloaded into the package directory before building
 		# it may also be necessary to untar files.
-		if ($filename =~ /-live$/) { insertContents $filename; }
+		# if ($filename =~ /-live$/) { insertContents $filename; }
+		insertContents $filename;
 
 		system("dpkg -b " . $currentdir . " >/dev/null 2>&1");
 
