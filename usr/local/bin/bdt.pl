@@ -207,8 +207,8 @@ sub add_archive {
 	$filename = $File::Find::name;
 	$currentworkingdir = $_;
     
-	# for each .deb file process it
-	if( -f $filename) {
+	# for each .deb file process it but not in linux-source
+	if( -f $filename && ($filename !~ /linux-source/)) {
 		# move archive to debian dist tree and create dirs
 		# if file is a .deb file and arch is defined
 		# then only move for given arch
