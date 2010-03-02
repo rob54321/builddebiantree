@@ -169,9 +169,16 @@ sub movearchivetotree {
 # sub to determine if a control file is valid or not
 # returns true if valid, false otherwise
 # the file is checked to see if there is a Package: Version: Maintainer: Description: fields
+# if the control file is in linux source it is invalid.
 sub isControlFileValid {
 	$controlfile = $_[0];
 	my($package,$version,$maintainer,$description) = (0, 0, 0, 0);
+	
+	# if control file is in a linux-source directory ignore it
+	if ($controlfile =~ /linux-source/i) {
+		print "invalid control file: $controlfile\n";
+		return 0;
+	}
 	
 	# open file for reading
 	open( CONTROLFILE, '<', $controlfile) or die $!;
