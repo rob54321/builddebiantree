@@ -275,7 +275,7 @@ sub usage {
 -x destination path of archive default: $debianroot\
 -s scan packages to make Packages\
 -d distribution etch or lenny or squeeze, testing. Default: $dist\
--S full path of subversion repository default: $repository\n
+-S full path of subversion repository default: $subversion\
 -f force insertion of package into repository default: $force\n";
     exit();
 
@@ -285,7 +285,8 @@ sub usage {
 $dist = "lenny";
 @all_arch = ("amd64", "i386");
 $workingdir = "/tmp/debian";
-$repository = "file:///mnt/hdd/jbackup/svn/debian/";
+$subversion = "/mnt/hdd/jbackup/svn";
+$repository = "file://" . $subversion . "/debian/";
 $debianroot = "/mnt/hdd/mydebian";
 $force = "false";
 
