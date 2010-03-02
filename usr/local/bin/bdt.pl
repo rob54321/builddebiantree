@@ -20,23 +20,23 @@ sub replaceLink {
 	# get parent dir of link
 	$parentdir = dirname($link);
 	
-	# check if link is a link
-	if ( -l $link) {
+	# check if link is a link and it ends in .lnk
+	if ( (-l $link) && ($link =~ /\.lnk$/)) {
 		# get original file that link points to
 		$original = readlink $link;
 		
 		# if file is a tar file untar it
-		if ($original =~ /.tar.gz$/) {
+		if ($original =~ /\.tar.gz$/) {
 			# .tar.gz file untar it
 			system("tar -xvzf " . $original);
 		}
-		elsif ($original =~ /.bin$/) {
+		elsif ($original =~ /\.bin$/) {
 			# .bin file execute it
 			system($original);
 		}
 		else {
 			# copy the file or directory to here
-			print "cp -a " . $original . " " . $parentdir . "\n";
+			print "including: $original \n";
 			system("cp -a " . $original . " " . $parentdir);
 		}
 		# stop descending
@@ -68,32 +68,32 @@ sub makeCompressedPackages {
 	
 	# save current dir
 	my($currentdir) = cwd;
-    chdir $packagesdir;
-    system("cp Packages P");
-    system("gzip -f Packages");
-    system("mv P Packages");
-    system("bzip2 -f -k Packages");
-    
-    # set back to previous dir
-    chdir $currentdir;
+	chdir $packagesdir;
+	system("cp Packages P");
+	system("gzip -f Packages");
+	system("mv P Packages");
+	system("bzip2 -f -k Packages");
+
+	# set back to previous dir
+	chdir $currentdir;
 }
 
 # remove working dir
 sub removeworkingdir {
-    system("rm -rf " . $workingdir . "/*");
+	system("rm -rf " . $workingdir . "/*");
 }
 
 # given an archive name this function returns the control field
 sub getpackagefield {
 	my ($archive, $field) = @_;
 
-    # get the package name from the control file
-    @command = ("dpkg-deb -f ", $archive, $field);
-    $field = `@command`;
-    chomp $field;
+	# get the package name from the control file
+	@command = ("dpkg-deb -f ", $archive, $field);
+	$field = `@command`;
+	chomp $field;
 
 	# return control field from package
-    return $field;
+	return $field;
 }
 
 # movearchivetotree:
@@ -105,23 +105,23 @@ sub getpackagefield {
 # destination = debianpool / section / firstchar / packagename
 # any architecture is moved.
 sub movearchivetotree {
-    my($archive, $status) = @_;
+	my($archive, $status) = @_;
 
-    # get section to use as first dir under pool
-    $section = getpackagefield($archive, "Section");
+	# get section to use as first dir under pool
+	$section = getpackagefield($archive, "Section");
 
-    # get package name
-    $packagename = getpackagefield($archive, "Package");
+	# get package name
+	$packagename = getpackagefield($archive, "Package");
 	$version = getpackagefield($archive, "Version");
 	$architecture = getpackagefield($archive, "Architecture");
-	
-    # make dir under pool/firstletter of packagename/packagename
-    # get first character of string
-    $firstchar = substr($packagename, 0, 1);
+		
+	# make dir under pool/firstletter of packagename/packagename
+	# get first character of string
+	$firstchar = substr($packagename, 0, 1);
 
-    # make directory
-    $destination = $debianpool . "/" . $section . "/" . $firstchar . "/" . $packagename;
-    system("mkdir -p " . $destination) if ! -d $destination;
+	# make directory
+	$destination = $debianpool . "/" . $section . "/" . $firstchar . "/" . $packagename;
+	system("mkdir -p " . $destination) if ! -d $destination;
 
 	# compare the version of the file being inserted to the existing versions
 	# in the destination directory for the same architecture.
@@ -145,94 +145,123 @@ sub movearchivetotree {
 	
 	if ($force eq "true" || $insert_file eq "true") {
 		# delete previous versions of files in the repository with the same packagename, architecture in the destination
-		system("rm -fv " . $destination . "/" . $packagename . "*" . $architecture . ".deb");
+		system("rm -f " . $destination . "/" . $packagename . "*" . $architecture . ".deb");
 	
-    	if ($status eq "rename") {
-			# make standard name and move
-			system("dpkg-name -o " . $archive . " > /dev/null 2>&1");
-	
-			# archive name has changed to standard name
-			$archive = dirname($archive) . "/". $packagename . "_". $version . "_" . $architecture . ".deb";
-    	}
-       
-    	#display message for move debpackage or build and move
-    	if ($status eq "debpackage") {
-    		print "debpackage ", basename($archive), " -> ", $destination, "\n";
-    		system ("cp " . $archive . " " . $destination);
-    	} else {
-    		print "source     ", basename($archive), " -> ", $destination, "\n";
-	    	system ("mv " . $archive . " " . $destination);
-    	}
-    }
+		if ($status eq "rename") {
+				# make standard name and move
+				system("dpkg-name -o " . $archive . " > /dev/null 2>&1");
+		
+				# archive name has changed to standard name
+				$archive = dirname($archive) . "/". $packagename . "_". $version . "_" . $architecture . ".deb";
+		}
+
+		#display message for move debpackage or build and move
+		if ($status eq "debpackage") {
+			print "debpackage ", basename($archive), "\n";
+			system ("cp " . $archive . " " . $destination);
+		} else {
+			print "source     ", basename($archive), "\n";
+			system ("mv " . $archive . " " . $destination);
+		}
+	}
 }
 
+# sub to determine if a control file is valid or not
+# returns true if valid, false otherwise
+# the file is checked to see if there is a Package: Version: Maintainer: Description: fields
+sub isControlFileValid {
+	$controlfile = $_[0];
+	my($package,$version,$maintainer,$description) = (0, 0, 0, 0);
+	
+	# open file for reading
+	open( CONTROLFILE, '<', $controlfile) or die $!;
+	while (<CONTROLFILE>) {
+		$package = 1 if /Package:/;
+		$version = 1 if /Version:/;
+		$maintainer = 1 if /Maintainer:/;
+		$description = 1 if /Description:/;
+	}
+	close CONTROLFILE;
+	
+	if ($package and $version and $maintainer and $description) {
+		return 1;
+	} else {
+		print "invalid control file: $controlfile\n";
+		return 0;
+	}
+}
 # add_archive will recursively move all .deb files to the debian repository
 # it will also check each directory for  DEBIAN/control file. If this file exists
 # the package will be built and the archive will be saved in the same directory
 # as the archive directory. The archive is renamed by movearchivetotree when insserted
 # into the repository.
 sub add_archive {
-    # get current selection if it is a file
-    $filename = $File::Find::name;
-    $currentworkingdir = $_;
+	# get current selection if it is a file
+	$filename = $File::Find::name;
+	$currentworkingdir = $_;
     
-    # for each .deb file process it
-    if( -f $filename) {
+	# for each .deb file process it
+	if( -f $filename) {
 		# move archive to debian dist tree and create dirs
 		# if file is a .deb file and arch is defined
 		# then only move for given arch
-		if ($arch && ($filename =~ /.deb$/)) {
+		if ($arch && ($filename =~ /\.deb$/)) {
 			# get arch of package
 			$currentarch = getpackagefield($filename, "Architecture");
-			if (($filename =~ /.deb$/) && ($currentarch eq $arch || $currentarch eq "all")) {
+			if (($filename =~ /\.deb$/) && ($currentarch eq $arch || $currentarch eq "all")) {
 				movearchivetotree($filename, "debpackage");
 			}
-    	} else {
-    		# arch is undefined move all .deb files to archive
-    		if ($filename =~ /.deb$/) {
-    			movearchivetotree($filename, "debpackage");
-    		}
-    	}
-    }
+		} else {
+			# arch is undefined move all .deb files to archive
+			if ($filename =~ /\.deb$/) {
+				movearchivetotree($filename, "debpackage");
+			}
+		}
+	}
 	# a directory was found
 	# check if it has DEBIAN/control in it
-	if ( -f $filename . "/" . "/DEBIAN/control" ) {
-		# this is a debian package build it
-		$parentdir = dirname($filename);
-		$currentdir = basename($filename);
+	elsif ( -T ($filename . "/" . "/DEBIAN/control")) {
 
-		# if arch is defined and it the source arch then build and move
-		# get architecture from control file
-		if ($arch) {
-			$arch_found = "false";
-			open( CONTROL, '<', $filename . "/" . "DEBIAN/control") or die $!;
-			while (<CONTROL>) {
-				if (/Architecture: *$arch/ || /Architecture: *all/) {
-					$arch_found = "true";
+		# verify that this is a valid control file
+		if (isControlFileValid($filename . "/" . "DEBIAN/control")) {
+
+			# this is a debian package build it
+			$parentdir = dirname($filename);
+			$currentdir = basename($filename);
+
+			# if arch is defined and it the source arch then build and move
+			# get architecture from control file
+			if ($arch) {
+				$arch_found = "false";
+				open( CONTROL, '<', $filename . "/" . "DEBIAN/control") or die $!;
+				while (<CONTROL>) {
+					if (/Architecture: *$arch/ || /Architecture: *all/) {
+						$arch_found = "true";
+					}
 				}
+				if ($arch_found eq "false") {$File::Find::prune = 1; return}
 			}
-			if ($arch_found eq "false") {$File::Find::prune = 1; return}
-		}
-		# if we are in the build directory
-		if ($currentworkingdir eq ".") {
-			# in build directory change to parent to build
-			chdir $parentdir;
-		}
+			# if we are in the build directory
+			if ($currentworkingdir eq ".") {
+				# in build directory change to parent to build
+				chdir $parentdir;
+			}
+			
+			# if the directory name in which the package resides is appended by "-live"
+			# then all links must be downloaded into the package directory before building
+			# it may also be necessary to untar files.
+			# if ($filename =~ /-live$/) { insertContents $filename; }
+			insertContents $filename;
+
+			system("dpkg -b " . $currentdir . " >/dev/null 2>&1");
+
+			$debname = $filename . ".deb";
+
+			movearchivetotree($debname, "rename");
 		
-		# if the directory name in which the package resides is appended by "-live"
-		# then all links must be downloaded into the package directory before building
-		# it may also be necessary to untar files.
-		# if ($filename =~ /-live$/) { insertContents $filename; }
-		insertContents $filename;
-
-		system("dpkg -b " . $currentdir . " >/dev/null 2>&1");
-
-		$debname = $filename . ".deb";
-
-		movearchivetotree($debname, "rename");
-	
-		# do not descend futher.
-		$File::Find::prune = 1;
+			# do not descend futher.
+			$File::Find::prune = 1;
+		}
 	}
 }
 
@@ -349,8 +378,8 @@ if ($opt_r) {
 # make Packages file
 if ($opt_s) {
 
-    #change to debian root
-    chdir $debianroot;
+	#change to debian root
+	chdir $debianroot;
 
 	# arch is defined then scan only for that arch, else do for all_arch
 	if($arch) {
@@ -362,11 +391,11 @@ if ($opt_s) {
 			makeCompressedPackages($arch);
 		}
 	}
-     
-    # make the release file
-    chdir $debianroot . "/dists/" . $dist;
-    unlink("Release");
-    system("apt-ftparchive -o=APT::FTPArchive::Release::Components=main -o=APT::FTPArchive::Release::Codename=lenny -o=APT::FTPArchive::Release::Origin=Debian -o=APT::FTPArchive::Release::Suite=stable -o=APT::FTPArchive::Release::Label=Debian -o=APT::FTPArchive::Release::Description=\"my stuff\" -o=APT::FTPArchive::Release::Architectures=\"i386 amd64\" release . > ../Release");
-    system("mv ../Release .");
+
+	# make the release file
+	chdir $debianroot . "/dists/" . $dist;
+	unlink("Release");
+	system("apt-ftparchive -o=APT::FTPArchive::Release::Components=main -o=APT::FTPArchive::Release::Codename=lenny -o=APT::FTPArchive::Release::Origin=Debian -o=APT::FTPArchive::Release::Suite=stable -o=APT::FTPArchive::Release::Label=Debian -o=APT::FTPArchive::Release::Description=\"my stuff\" -o=APT::FTPArchive::Release::Architectures=\"i386 amd64\" release . > ../Release");
+	system("mv ../Release .");
 }
 
