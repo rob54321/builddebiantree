@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/perl -w
 # this programme exports all debian source packages from svn and
 # builds the debian packages, places then in the debian tree, builds the
 # Packages file, updates apt-get.
@@ -260,8 +260,11 @@ sub add_archive {
 			# if ($filename =~ /-live$/) { insertContents $filename; }
 			insertContents $filename;
 
-			system("dpkg -b " . $currentdir . " >/dev/null 2>&1");
-
+			$rc = system("dpkg -b " . $currentdir . " >/dev/null 2>&1");
+			if ($rc != 0) {
+				print "error in $currentdir\n";
+				exit;
+			}
 			$debname = $filename . ".deb";
 
 			movearchivetotree($debname, "rename");
