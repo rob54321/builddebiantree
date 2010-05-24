@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/perl
 # this programme exports all debian source packages from svn and
 # builds the debian packages, places then in the debian tree, builds the
 # Packages file, updates apt-get.
