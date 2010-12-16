@@ -163,6 +163,8 @@ sub movearchivetotree {
 			print "source     ", basename($archive), "\n";
 			system ("mv " . $archive . " " . $destination);
 		}
+		# chmod of file in archive to 0666
+		chmod 0666, $destination . "/" . $packagename . "_" . $version . "_" . $architecture . ".deb";
 	}
 }
 
