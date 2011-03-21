@@ -164,7 +164,8 @@ sub movearchivetotree {
 			system ("mv " . $archive . " " . $destination);
 		}
 		# chmod of file in archive to 0666
-		chmod 0666, $destination . "/" . $packagename . "_" . $version . "_" . $architecture . ".deb";
+		$pname = $destination . "/" . basename($archive);
+		chmod (0666, $pname);
 	}
 }
 
