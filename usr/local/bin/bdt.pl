@@ -1,4 +1,5 @@
 #!/usr/bin/perl
+
 # this programme exports all debian source packages from svn and
 # builds the debian packages, places then in the debian tree, builds the
 # Packages file, updates apt-get.
@@ -409,7 +410,7 @@ if ($opt_s) {
 	# make the release file
 	chdir $debianroot . "/dists/" . $dist;
 	unlink("Release");
-	system("apt-ftparchive -o=APT::FTPArchive::Release::Components=main -o=APT::FTPArchive::Release::Codename=lenny -o=APT::FTPArchive::Release::Origin=Debian -o=APT::FTPArchive::Release::Suite=stable -o=APT::FTPArchive::Release::Label=Debian -o=APT::FTPArchive::Release::Description=\"my stuff\" -o=APT::FTPArchive::Release::Architectures=\"i386 amd64\" release . > ../Release");
+	system("apt-ftparchive -o=APT::FTPArchive::Release::Components=main -o=APT::FTPArchive::Release::Codename=" . $dist . " -o=APT::FTPArchive::Release::Origin=Debian -o=APT::FTPArchive::Release::Suite=stable -o=APT::FTPArchive::Release::Label=Debian -o=APT::FTPArchive::Release::Description=\"my stuff\" -o=APT::FTPArchive::Release::Architectures=\"i386 amd64\" release . > ../Release");
 	system("mv ../Release .");
 }
 
