@@ -29,7 +29,7 @@ sub replaceLink {
 		# if file is a tar file untar it
 		if ($original =~ /\.tar.gz$/) {
 			# .tar.gz file untar it
-			system("tar -xvzf " . $original);
+			system("tar -xpszf " . $original);
 		}
 		elsif ($original =~ /\.bin$/) {
 			# .bin file execute it
