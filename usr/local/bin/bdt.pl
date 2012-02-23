@@ -298,7 +298,7 @@ sub usage {
 # default values
 $dist = "lenny";
 @all_arch = ("amd64", "i386");
-$workingdir = "/tmp/debian";
+$workingdir = "/mnt/hdint/tmp/debian";
 $subversion = "/home/robert/svn";
 $repository = "file://" . $subversion . "/debian/";
 $debianroot = "/mnt/hdd/mydebian";
