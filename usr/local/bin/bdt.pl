@@ -296,7 +296,7 @@ sub usage {
 }
 # main entry point
 # default values
-$dist = "lenny";
+$dist = "stable";
 @all_arch = ("amd64", "i386");
 $workingdir = "/mnt/hdint/tmp/debian";
 $subversion = "/home/robert/svn";
@@ -344,7 +344,7 @@ if ($opt_x) {
 }
 
 # set up values of directories
-$debianpool = $debianroot . "/pool";
+$debianpool = $debianroot . "/pool/$dist";
 
 #mkdir directories
 system("mkdir -p " . $debianroot) if ! -d $debianroot;
@@ -398,11 +398,11 @@ if ($opt_s) {
 
 	# arch is defined then scan only for that arch, else do for all_arch
 	if($arch) {
-		system("dpkg-scanpackages -m -a " . $arch . " pool > dists/" . $dist . "/main/binary-". $arch . "/Packages");
+		system("dpkg-scanpackages -m -a " . $arch . " $debianpool > dists/" . $dist . "/main/binary-". $arch . "/Packages");
 		makeCompressedPackages($arch);
 	} else {
 		foreach $arch (@all_arch) {
-			system("dpkg-scanpackages -m -a " . $arch . " pool > dists/" . $dist . "/main/binary-". $arch . "/Packages");
+			system("dpkg-scanpackages -m -a " . $arch . " pool/$dist > dists/" . $dist . "/main/binary-". $arch . "/Packages");
 			makeCompressedPackages($arch);
 		}
 	}
