@@ -288,7 +288,7 @@ sub usage {
 -a architecture i386 or amd64 default i386\
 -x destination path of archive default: $debianroot\
 -s scan packages to make Packages\
--d distribution etch or lenny or squeeze, testing. Default: $dist\
+-d distribution [debian|ubuntu|common]	Default: $dist\
 -S full path of subversion repository default: $subversion\
 -f force insertion of package into repository default: $force\n";
     exit();
@@ -296,7 +296,7 @@ sub usage {
 }
 # main entry point
 # default values
-$dist = "stable";
+$dist = "debian";
 @all_arch = ("amd64", "i386");
 $workingdir = "/mnt/hdint/tmp/debian";
 $subversion = "/home/robert/svn";
