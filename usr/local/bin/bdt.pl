@@ -290,7 +290,8 @@ sub usage {
 -s scan packages to make Packages\
 -d distribution [debian|ubuntu|common]	Default: $dist\
 -S full path of subversion repository default: $subversion\
--f force insertion of package into repository default: $force\n";
+-f full path filename to be added\
+-F force insertion of package into repository default: $force\n";
     exit();
 
 }
@@ -304,16 +305,23 @@ $repository = "file://" . $subversion . "/debian/";
 $debianroot = "/mnt/hdd/mydebian";
 $force = "false";
 
-# if no options print message
+
+# if no arguments given show usage
 if (! $ARGV[0]) {
 	usage;
 }
 
 # get command line options
-getopts('fS:a:d:elp:r:x:d:s');
+getopts('hFS:a:d:elp:r:x:d:sf:');
+
+# if no options or h option print usage
+if ($opt_h) {
+	usage;
+}
+
 
 # set force option to force a package to be inserted into mydebian
-if ($opt_f) {
+if ($opt_F) {
 	$force = "true";
 }
 # set subversion respository
@@ -384,12 +392,22 @@ if ($opt_p) {
 if ($opt_r) {
 	@directory_list = split /\s+/, $opt_r;
 	foreach $directory (@directory_list) {
-    	die "cannot open $directory" if ! -d $directory;
+    		die "cannot open $directory" if ! -d $directory;
 
-    	# recurse down dirs and move all
-    	find \&add_archive, $directory;
+	    	# recurse down dirs and move all
+    		find \&add_archive, $directory;
 	}
 }
+
+# add one specific file to the archive
+if ($opt_f) {
+	$fileAdd = $opt_f;
+	die "$fileAdd is not .deb file or could not be opened\n" if (! (($fileAdd =~ /\.deb/) and (open FHANDLE, "< $fileAdd")));
+	close FHANDLE;
+	
+	movearchivetotree($fileAdd, "debpackage");			
+}
+
 # make Packages file
 if ($opt_s) {
 
