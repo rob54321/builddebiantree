@@ -347,8 +347,6 @@ if (! (($dist eq "ubuntu") || ($dist eq "debian") || ($dist eq "common"))){
 	exit;
 }
 
-exit;
-
 # set the architecture
 if ($opt_a) {
     $arch = $opt_a;
