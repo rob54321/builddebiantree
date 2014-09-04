@@ -342,7 +342,12 @@ if ($opt_d) {
 }
 
 # check a valid distribution was given
-exit if (! (($dist eq "ubuntu") || ($dist eq "debian") || ($dist eq "common")));
+if (! (($dist eq "ubuntu") || ($dist eq "debian") || ($dist eq "common"))){
+	print "$dist: is not a valid distribution\n";
+	exit;
+}
+
+exit;
 
 # set the architecture
 if ($opt_a) {
