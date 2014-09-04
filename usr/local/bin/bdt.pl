@@ -297,7 +297,7 @@ sub usage {
 }
 # main entry point
 # default values
-$dist = "debian";
+$dist = "none";
 @all_arch = ("amd64", "i386");
 $workingdir = "/mnt/hdint/tmp/debian";
 $subversion = "/home/robert/svn";
@@ -340,6 +340,9 @@ if ($opt_l) {
 if ($opt_d) {
     $dist = $opt_d;
 }
+
+# check a valid distribution was given
+exit if (! (($dist eq "ubuntu") || ($dist eq "debian") || ($dist eq "common")));
 
 # set the architecture
 if ($opt_a) {
