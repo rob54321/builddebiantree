@@ -283,9 +283,9 @@ sub usage {
     print "usage: builddebiantree [options] filelist\
 -e extract all from subversion -> build all -> add to distribution tree\
 -l list debian packages in repository\
--p ["pkg1 pkg2 ..."] extract package list from subversion -> build -> add to distribution tree\
--r ["dir1 dir2 ..."] recurse directory list containing archives, build -> add to repository\
--a architecture i386 or amd64 default i386\
+-p [\"pkg1 pkg2 ...\"] extract package list from subversion -> build -> add to distribution tree\
+-r [\"dir1 dir2 ...\"] recurse directory list containing full paths, build -> add to repository\
+-a architecture [i386|amd64|armhf]  default nothing\
 -x destination path of archive default: $debianroot\
 -s scan packages to make Packages\
 -d distribution [debian|ubuntu|common|rpi]	Default: $dist\
@@ -298,7 +298,8 @@ sub usage {
 # main entry point
 # default values
 $dist = "none";
-@all_arch = ("amd64", "i386");
+$rpiarch = "armhf";
+@all_arch = ("amd64", "i386", "armhf");
 $workingdir = "/mnt/hdint/tmp/debian";
 $subversion = "/home/robert/svn";
 $repository = "file://" . $subversion . "/debian/";
@@ -341,19 +342,28 @@ if ($opt_d) {
     $dist = $opt_d;
 }
 
+# if distribution is rpi then arch must be armhf
+if ($dist eq "rpi") {
+    $arch = $rpiarch;
+}
+
+# set the architecture, if dist is rpi the arch is armhf
+if (($opt_a) and ($dist ne "rpi")) {
+    $arch = $opt_a;
+}
+
+
 # check a valid distribution was given
 if (! (($dist eq "ubuntu") || ($dist eq "debian") || ($dist eq "common") || ($dist eq "rpi"))){
 	print "$dist: is not a valid distribution\n";
 	exit;
 }
 
-# set the architecture
-if ($opt_a) {
-    $arch = $opt_a;
-}
-
+# check for invalid combination of dist and arch
+if ((($dist eq "ubuntu") and ($arch eq $rpiarch)) or (($dist eq "debian")
 # set up destinaton if given on command line
 if ($opt_x) {
+
     	$debianroot = $opt_x;
 }
 
@@ -364,8 +374,8 @@ $debianpool = $debianroot . "/pool/$dist";
 system("mkdir -p " . $debianroot) if ! -d $debianroot;
 system("mkdir -p " . $debianpool) if ! -d $debianpool;
 system("mkdir -p " . $workingdir) if ! -d $workingdir;
-foreach $arch (@all_arch) {
-  	$packagesdir = $debianroot . "/dists/" . $dist . "/main/binary-" . $arch;
+foreach $architem (@all_arch) {
+  	$packagesdir = $debianroot . "/dists/" . $dist . "/main/binary-" . $architem;
    	system("mkdir -p " . $packagesdir) if ! -d $packagesdir;
 }	
 
@@ -422,19 +432,31 @@ if ($opt_s) {
 
 	# arch is defined then scan only for that arch, else do for all_arch
 	if($arch) {
+                print "dist = $dist :: arch = $arch\n";
 		system("dpkg-scanpackages -m -a " . $arch . " $debianpool > dists/" . $dist . "/main/binary-". $arch . "/Packages");
 		makeCompressedPackages($arch);
 	} else {
-		foreach $arch (@all_arch) {
-			system("dpkg-scanpackages -m -a " . $arch . " pool/$dist > dists/" . $dist . "/main/binary-". $arch . "/Packages");
-			makeCompressedPackages($arch);
+                # if dist is common scan for all architectures, else scan for i386 and amd64
+                if ($dist eq "common") {
+                    @scan_arch = @all_arch;
+                } else {
+                    @scan_arch = qw/i386 amd64/;
+                }
+		foreach $architem (@scan_arch) {
+                        print "dist = $dist :: arch = $architem\n";
+			system("dpkg-scanpackages -m -a " . $architem . " pool/$dist > dists/" . $dist . "/main/binary-". $architem . "/Packages");
+			makeCompressedPackages($architem);
 		}
 	}
 
 	# make the release file
 	chdir $debianroot . "/dists/" . $dist;
 	unlink("Release");
-	system("apt-ftparchive -o=APT::FTPArchive::Release::Components=main -o=APT::FTPArchive::Release::Codename=" . $dist . " -o=APT::FTPArchive::Release::Origin=Debian -o=APT::FTPArchive::Release::Suite=stable -o=APT::FTPArchive::Release::Label=Debian -o=APT::FTPArchive::Release::Description=\"my stuff\" -o=APT::FTPArchive::Release::Architectures=\"i386 amd64\" release . > ../Release");
+	if ($arch eq $rpiarch) {
+            system("apt-ftparchive -o=APT::FTPArchive::Release::Components=main -o=APT::FTPArchive::Release::Codename=" . $dist . " -o=APT::FTPArchive::Release::Origin=Debian -o=APT::FTPArchive::Release::Suite=stable -o=APT::FTPArchive::Release::Label=Debian -o=APT::FTPArchive::Release::Description=\"my stuff\" -o=APT::FTPArchive::Release::Architectures=$rpiarch release . > ../Release");
+        } else {
+            system("apt-ftparchive -o=APT::FTPArchive::Release::Components=main -o=APT::FTPArchive::Release::Codename=" . $dist . " -o=APT::FTPArchive::Release::Origin=Debian -o=APT::FTPArchive::Release::Suite=stable -o=APT::FTPArchive::Release::Label=Debian -o=APT::FTPArchive::Release::Description=\"my stuff\" -o=APT::FTPArchive::Release::Architectures=\"i386 amd64\" release . > ../Release");
+        }
 	system("mv ../Release .");
 }
 
