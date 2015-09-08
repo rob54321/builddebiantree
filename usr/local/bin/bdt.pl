@@ -451,7 +451,7 @@ if ($opt_s) {
 	# arch is defined then scan only for that arch, else do for all_arch
 	if($arch) {
                 print "dist = $dist :: arch = $arch\n";
-		system("dpkg-scanpackages -m -a " . $arch . " $debianpool > dists/" . $dist . "/main/binary-". $arch . "/Packages");
+		system("dpkg-scanpackages -m -a " . $arch . " pool/$dist > dists/" . $dist . "/main/binary-". $arch . "/Packages");
 		makeCompressedPackages($arch);
 	} else {
                 # if dist is common scan for all architectures, else scan for i386 and amd64
