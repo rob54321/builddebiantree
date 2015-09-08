@@ -360,9 +360,9 @@ if (! (($dist eq "ubuntu") || ($dist eq "debian") || ($dist eq "common") || ($di
 }
 
 # check for invalid combination of dist and arch
-if ((($dist eq "ubuntu") and ($arch eq $rpiarch)) or (($dist eq "debian") and ($arch -eq $rpiarch))) {
+if ((($dist eq "ubuntu") and ($arch eq $rpiarch)) or (($dist eq "debian") and ($arch eq $rpiarch))) {
     print "invalid combination of distribution and architecture\n";
-    exit 1;
+    exit;
 }
 
 # set up destinaton if given on command line
