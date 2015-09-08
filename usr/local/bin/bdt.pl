@@ -283,12 +283,12 @@ sub usage {
     print "usage: builddebiantree [options] filelist\
 -e extract all from subversion -> build all -> add to distribution tree\
 -l list debian packages in repository\
--p extract package list from subversion -> build -> add to distribution tree\
--r recurse directory list containing archives, build -> add to repository\
+-p ["pkg1 pkg2 ..."] extract package list from subversion -> build -> add to distribution tree\
+-r ["dir1 dir2 ..."] recurse directory list containing archives, build -> add to repository\
 -a architecture i386 or amd64 default i386\
 -x destination path of archive default: $debianroot\
 -s scan packages to make Packages\
--d distribution [debian|ubuntu|common]	Default: $dist\
+-d distribution [debian|ubuntu|common|rpi]	Default: $dist\
 -S full path of subversion repository default: $subversion\
 -f full path filename to be added\
 -F force insertion of package into repository default: $force\n";
@@ -342,7 +342,7 @@ if ($opt_d) {
 }
 
 # check a valid distribution was given
-if (! (($dist eq "ubuntu") || ($dist eq "debian") || ($dist eq "common"))){
+if (! (($dist eq "ubuntu") || ($dist eq "debian") || ($dist eq "common") || ($dist eq "rpi"))){
 	print "$dist: is not a valid distribution\n";
 	exit;
 }
