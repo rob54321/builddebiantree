@@ -364,6 +364,10 @@ if ((($dist eq "ubuntu") and ($arch eq $rpiarch)) or (($dist eq "debian") and ($
     print "invalid combination of distribution and architecture\n";
     exit;
 }
+if (($dist eq "rpi") and ($arch ne "armhf")) {
+    print "invalid combination of distribution and architecture\n";
+    exit;
+}
 
 # set up destinaton if given on command line
 if ($opt_x) {
@@ -378,7 +382,17 @@ $debianpool = $debianroot . "/pool/$dist";
 system("mkdir -p " . $debianroot) if ! -d $debianroot;
 system("mkdir -p " . $debianpool) if ! -d $debianpool;
 system("mkdir -p " . $workingdir) if ! -d $workingdir;
-foreach $architem (@all_arch) {
+
+# do not make binary-i386 and binary-amd64 for armhf architecture when distribution is rpi
+if ($dist eq "common") {
+    @scan_arch = @all_arch;
+} elsif ($dist eq "rpi") {
+    @scan_arch = qw/armhf/;
+} else {
+    @scan_arch = qw/i386 amd64/;
+}
+
+foreach $architem (@scan_arch) {
   	$packagesdir = $debianroot . "/dists/" . $dist . "/main/binary-" . $architem;
    	system("mkdir -p " . $packagesdir) if ! -d $packagesdir;
 }	
@@ -456,11 +470,15 @@ if ($opt_s) {
 	# make the release file
 	chdir $debianroot . "/dists/" . $dist;
 	unlink("Release");
-	if ($arch eq $rpiarch) {
-            system("apt-ftparchive -o=APT::FTPArchive::Release::Components=main -o=APT::FTPArchive::Release::Codename=" . $dist . " -o=APT::FTPArchive::Release::Origin=Debian -o=APT::FTPArchive::Release::Suite=stable -o=APT::FTPArchive::Release::Label=Debian -o=APT::FTPArchive::Release::Description=\"my stuff\" -o=APT::FTPArchive::Release::Architectures=$rpiarch release . > ../Release");
+	if ($dist eq "common") {
+            $archlist = "i386 amd64 armhf";
+        } elsif ($dist eq "rpi") {
+            $archlist = "armhf";
         } else {
-            system("apt-ftparchive -o=APT::FTPArchive::Release::Components=main -o=APT::FTPArchive::Release::Codename=" . $dist . " -o=APT::FTPArchive::Release::Origin=Debian -o=APT::FTPArchive::Release::Suite=stable -o=APT::FTPArchive::Release::Label=Debian -o=APT::FTPArchive::Release::Description=\"my stuff\" -o=APT::FTPArchive::Release::Architectures=\"i386 amd64\" release . > ../Release");
+            # dist is ubuntu or debian
+            $archlist = "i386 amd64";
         }
+        system("apt-ftparchive -o=APT::FTPArchive::Release::Components=main -o=APT::FTPArchive::Release::Codename=" . $dist . " -o=APT::FTPArchive::Release::Origin=Debian -o=APT::FTPArchive::Release::Suite=stable -o=APT::FTPArchive::Release::Label=Debian -o=APT::FTPArchive::Release::Description=\"my stuff\" -o=APT::FTPArchive::Release::Architectures=\"$archlist\" release . > ../Release");
 	system("mv ../Release .");
 }
 
