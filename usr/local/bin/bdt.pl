@@ -9,6 +9,40 @@ use Getopt::Std;
 use Cwd;
 use File::Glob ':glob';
 
+# sub to write config file of parameters that have changed.
+# the hash %config contains the key value pairs of the changed variables
+# format is variable value
+sub writeconfig {
+    open OUTFILE, ">$configFile";
+    foreach $key (keys %config) {
+        print OUTFILE "$key $config{$key}\n";
+    }
+    close OUTFILE;
+}
+
+# sub to get config file if it exists
+# if the config file exists, defaults will be read from the file
+# if there is no config file the original defaults will be used.
+sub getconfig {
+    # check if file exists
+    if ( -e $configFile) {
+        # display file
+        open INFILE,"<$configFile";
+        
+        # file format:
+        # var_name=value
+        # read file into memory and set values
+        while (<INFILE>) {
+            $workingdir = (split " ", $_)[1] if /workingdir/;
+            $subversion = (split " ", $_)[1] if /subversion/;
+            $debianroot = (split " ", $_)[1] if /debianroot/;
+        }
+        # print a message if any defaults were loaded
+        print "loaded config file\n";
+        close INFILE;
+    }
+}
+
 # sub to replace a link with the files it points to.
 # this is used for the live system since files
 # cannot be installed during the building of a live system.
@@ -298,6 +332,7 @@ sub usage {
 }
 # main entry point
 # default values
+$configFile = "/root/.bdt.pl";
 $dist = "none";
 $rpiarch = "armhf";
 @all_arch = ("amd64", "i386", "armhf");
