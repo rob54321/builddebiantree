@@ -291,7 +291,8 @@ sub usage {
 -d distribution [debian|ubuntu|common|rpi]	Default: $dist\
 -S full path of subversion repository default: $subversion\
 -f full path filename to be added\
--F force insertion of package into repository default: $force\n";
+-F force insertion of package into repository default: $force\
+-w set working directory: $workingdir\n";
     exit();
 
 }
@@ -313,12 +314,7 @@ if (! $ARGV[0]) {
 }
 
 # get command line options
-getopts('hFS:a:d:elp:r:x:d:sf:');
-
-# if no options or h option print usage
-if ($opt_h) {
-	usage;
-}
+getopts('hFS:a:d:elp:r:x:d:sf:w:');
 
 
 # set force option to force a package to be inserted into mydebian
@@ -327,9 +323,8 @@ if ($opt_F) {
 }
 # set subversion respository
 if ($opt_S) {
-	$repository = "file://" . $opt_S . "/debian/";
+        $subversion = $opt_S;
 }
-$exportcommand = "svn --force -q export " . $repository;
 
 # list all packages
 if ($opt_l) {
@@ -342,6 +337,12 @@ if ($opt_d) {
     $dist = $opt_d;
 }
 
+# set up destinaton if given on command line
+if ($opt_x) {
+
+    	$debianroot = $opt_x;
+}
+
 # if distribution is rpi then arch must be armhf
 if ($dist eq "rpi") {
     $arch = $rpiarch;
@@ -352,7 +353,10 @@ if (($opt_a) and ($dist ne "rpi")) {
     $arch = $opt_a;
 }
 
-
+# set working directory if changed
+if ($opt_w) {
+    $workingdir = $opt_w;
+}
 # check a valid distribution was given
 if (! (($dist eq "ubuntu") || ($dist eq "debian") || ($dist eq "common") || ($dist eq "rpi"))){
 	print "$dist: is not a valid distribution\n";
@@ -369,11 +373,16 @@ if (($dist eq "rpi") and ($arch ne "armhf")) {
     exit;
 }
 
-# set up destinaton if given on command line
-if ($opt_x) {
-
-    	$debianroot = $opt_x;
+# if no options or h option print usage
+if ($opt_h) {
+	usage;
 }
+
+
+# set up commands
+$repository = "file://" . $subversion . "/debian/";
+$exportcommand = "svn --force -q export " . $repository;
+
 
 # set up values of directories
 $debianpool = $debianroot . "/pool/$dist";
