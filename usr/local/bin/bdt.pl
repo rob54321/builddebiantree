@@ -11,8 +11,15 @@ use File::Glob ':glob';
 
 # sub to write config file of parameters that have changed.
 # the hash %config contains the key value pairs of the changed variables
+# all three vars workingdir, subversion and debianroot are written
+# some may not have changed, then the default values are written
 # format is variable value
 sub writeconfig {
+    # set up hash to save
+    $config{"workingdir"} = $workingdir;
+    $config{"subversion"} = $subversion;
+    $config{"debianroot"} = $debianroot;
+    
     open OUTFILE, ">$configFile";
     foreach $key (keys %config) {
         print OUTFILE "$key $config{$key}\n";
@@ -31,12 +38,13 @@ sub getconfig {
         
         # file format:
         # var_name=value
-        # read file into memory and set values
+        # read file into hash and set values
         while (<INFILE>) {
             $workingdir = (split " ", $_)[1] if /workingdir/;
             $subversion = (split " ", $_)[1] if /subversion/;
             $debianroot = (split " ", $_)[1] if /debianroot/;
         }
+        
         # print a message if any defaults were loaded
         print "loaded config file\n";
         close INFILE;
@@ -326,13 +334,14 @@ sub usage {
 -S full path of subversion repository default: $subversion\
 -f full path filename to be added\
 -F force insertion of package into repository default: $force\
--w set working directory: $workingdir\n";
+-w set working directory: $workingdir\
+-R reset back to defaults and exit\n";
     exit();
 
 }
 # main entry point
 # default values
-$configFile = "/root/.bdt.pl";
+$configFile = "/root/.bdt.rc";
 $dist = "none";
 $rpiarch = "armhf";
 @all_arch = ("amd64", "i386", "armhf");
@@ -343,14 +352,19 @@ $debianroot = "/mnt/hdd/mydebian";
 $force = "false";
 
 
-# if no arguments given show usage
-if (! $ARGV[0]) {
-	usage;
+# get command line options
+getopts('hFS:a:d:elp:r:x:d:sf:w:R');
+
+# reset by deleting config file and exit
+if ($opt_R) {
+    unlink($configFile);
+    print "deleted config file\n";
+    exit 0;
 }
 
-# get command line options
-getopts('hFS:a:d:elp:r:x:d:sf:w:');
-
+# get config file now, so that command line options
+# can override them if necessary
+getconfig;
 
 # set force option to force a package to be inserted into mydebian
 if ($opt_F) {
@@ -359,6 +373,12 @@ if ($opt_F) {
 # set subversion respository
 if ($opt_S) {
         $subversion = $opt_S;
+        
+        # add change to hash for saving
+        $config{"subversion"} = $opt_S;
+        
+        # set flag to say a change has been made
+        $config_changed = "true";
 }
 
 # list all packages
@@ -376,6 +396,11 @@ if ($opt_d) {
 if ($opt_x) {
 
     	$debianroot = $opt_x;
+        # add change to hash for saving
+        $config{"debianroot"} = $opt_x;
+        
+        # set flag to say a change has been made
+        $config_changed = "true";
 }
 
 # if distribution is rpi then arch must be armhf
@@ -391,7 +416,29 @@ if (($opt_a) and ($dist ne "rpi")) {
 # set working directory if changed
 if ($opt_w) {
     $workingdir = $opt_w;
+        # add change to hash for saving
+        $config{"workingdir"} = $opt_w;
+        
+        # set flag to say a change has been made
+        $config_changed = "true";
 }
+
+# save config file if it has changed
+print "$config_changed\n";
+writeconfig if $config_changed;
+
+# if no arguments given show usage
+if (! $ARGV[0]) {
+	usage;
+}
+
+
+# if no options or h option print usage
+if ($opt_h) {
+	usage;
+}
+
+
 # check a valid distribution was given
 if (! (($dist eq "ubuntu") || ($dist eq "debian") || ($dist eq "common") || ($dist eq "rpi"))){
 	print "$dist: is not a valid distribution\n";
@@ -406,11 +453,6 @@ if ((($dist eq "ubuntu") and ($arch eq $rpiarch)) or (($dist eq "debian") and ($
 if (($dist eq "rpi") and ($arch ne "armhf")) {
     print "invalid combination of distribution and architecture\n";
     exit;
-}
-
-# if no options or h option print usage
-if ($opt_h) {
-	usage;
 }
 
 
@@ -449,7 +491,11 @@ if ($opt_e) {
     system($command);
 
     find \&add_archive, $workingdir;
-    removeworkingdir;
+    removeworkingdir;        # write values to resp variables
+        $workingdir = $config{"workingdir"} if $config{"workingdir"};
+        $subversion = $config{"subversion"} if $config{"subversion"};
+        $debianroot = $config{"debianroot"} if $config{"debianroot"};
+
 }
 
 if ($opt_p) {
