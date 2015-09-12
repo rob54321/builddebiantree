@@ -200,10 +200,10 @@ sub movearchivetotree {
 
 		#display message for move debpackage or build and move
 		if ($status eq "debpackage") {
-			print "debpackage ", basename($archive), "\n";
+			print "debpackage: ", basename($archive), " -> $destination\n";
 			system ("cp " . $archive . " " . $destination);
 		} else {
-			print "source     ", basename($archive), "\n";
+			print "subversion source:     ", basename($archive), " -> $destination\n";
 			system ("mv " . $archive . " " . $destination);
 		}
 		# chmod of file in archive to 0666
@@ -250,9 +250,10 @@ sub isControlFileValid {
 # into the repository.
 sub add_archive {
 	# get current selection if it is a file
-	$filename = $File::Find::name;
-	$currentworkingdir = $_;
-    
+	$fullfilename = $File::Find::name;
+	$filename = $_;
+        $currentworkingdir = $File::Find::dir;
+        
 	# for each .deb file process it but not in linux-source
 	if( -f $filename && ($filename !~ /linux-source/)) {
 		# move archive to debian dist tree and create dirs
@@ -273,14 +274,15 @@ sub add_archive {
 	}
 	# a directory was found
 	# check if it has DEBIAN/control in it
+	# this is also used for building a package from subversion
 	elsif ( -T ($filename . "/" . "/DEBIAN/control")) {
 
 		# verify that this is a valid control file
 		if (isControlFileValid($filename . "/" . "DEBIAN/control")) {
 
 			# this is a debian package build it
-			$parentdir = dirname($filename);
-			$currentdir = basename($filename);
+			$parentdir = dirname($fullfilename);
+			$debdir = basename($fullfilename);
 
 			# if arch is defined and it the source arch then build and move
 			# get architecture from control file
@@ -306,12 +308,12 @@ sub add_archive {
 			# if ($filename =~ /-live$/) { insertContents $filename; }
 			insertContents $filename;
 
-			$rc = system("dpkg -b " . $currentdir . " >/dev/null 2>&1");
+			$rc = system("dpkg -b " . $debdir . " >/dev/null 2>&1");
 			if ($rc != 0) {
-				print "error in $currentdir\n";
+				print "error in $debdir\n";
 				exit;
 			}
-			$debname = $filename . ".deb";
+			$debname = $debdir . ".deb";
 
 			movearchivetotree($debname, "rename");
 		
