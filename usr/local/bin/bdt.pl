@@ -351,6 +351,10 @@ $repository = "file://" . $subversion . "/debian/";
 $debianroot = "/mnt/hdd/mydebian";
 $force = "false";
 
+# if no arguments given show usage
+if (! $ARGV[0]) {
+	$no_args = "true";
+}
 
 # get command line options
 getopts('hFS:a:d:elp:r:x:d:sf:w:R');
@@ -424,17 +428,11 @@ if ($opt_w) {
 }
 
 # save config file if it has changed
-print "$config_changed\n";
 writeconfig if $config_changed;
-
-# if no arguments given show usage
-if (! $ARGV[0]) {
-	usage;
-}
 
 
 # if no options or h option print usage
-if ($opt_h) {
+if ($opt_h or ($no_args eq "true")) {
 	usage;
 }
 
