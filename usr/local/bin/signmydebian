@@ -1,0 +1,62 @@
+#!/bin/bash
+# script to sign mydebian distros.
+
+# ubuntu dstro
+ubuntu () {
+	# for ubuntu
+	cd /mnt/hdext/mydebian/dists/ubuntu
+	gpg --clearsign -o InRelease Release
+	gpg -abs -o Release.gpg Release
+}
+
+common () {
+	# for common
+	cd /mnt/hdext/mydebian/dists/common
+	gpg --clearsign -o InRelease Release
+	gpg -abs -o Release.gpg Release
+}
+
+debian () {
+	# for debian
+	cd /mnt/hdext/mydebian/dists/debian
+	gpg --clearsign -o InRelease Release
+	gpg -abs -o Release.gpg Release
+}
+
+raspbian () {
+	# for rpi
+	cd /mnt/hdext/mydebian/dists/rpi
+	gpg --clearsign -o InRelease Release
+	gpg -abs -o Release.gpg Release
+}
+
+doAll () {
+	ubuntu
+	common
+	debian
+	raspbian
+}
+
+usage () {
+	echo "usage: signmydebian [-u -- ubuntu|-c -- common|-d -- debian|-r -- raspbian|-a -- do all]"
+	exit 0;
+}
+
+if [ $# -eq 0 ]
+then
+	usage;
+fi
+
+while getopts ucdrh opt
+do
+	case  ${opt}
+	in
+		u) ubuntu;;
+		c) common;;
+		d) debian;;
+		r) raspbian;;
+		a) doAll;;
+		h) usage;;
+		\?) usage;;
+	esac
+done
