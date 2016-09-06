@@ -4,6 +4,7 @@
 # ubuntu dstro
 ubuntu () {
 	# for ubuntu
+	echo "signing ubuntu"
 	cd /mnt/hdext/mydebian/dists/ubuntu
 	gpg --clearsign -o InRelease Release
 	gpg -abs -o Release.gpg Release
@@ -11,6 +12,7 @@ ubuntu () {
 
 common () {
 	# for common
+	echo "signing common"
 	cd /mnt/hdext/mydebian/dists/common
 	gpg --clearsign -o InRelease Release
 	gpg -abs -o Release.gpg Release
@@ -18,6 +20,7 @@ common () {
 
 debian () {
 	# for debian
+	echo "signing debian"
 	cd /mnt/hdext/mydebian/dists/debian
 	gpg --clearsign -o InRelease Release
 	gpg -abs -o Release.gpg Release
@@ -25,6 +28,7 @@ debian () {
 
 raspbian () {
 	# for rpi
+	echo "signing rpi"
 	cd /mnt/hdext/mydebian/dists/rpi
 	gpg --clearsign -o InRelease Release
 	gpg -abs -o Release.gpg Release
