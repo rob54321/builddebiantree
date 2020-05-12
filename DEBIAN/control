@@ -1,5 +1,5 @@
 Package: builddebiantree
-Version: 1.5
+Version: 1.6
 Architecture: all
 Maintainer: Robert Key robkey@mighty.co.za
 Depends: perl, dpkg, bzip2, tar, dpkg-dev, apt-utils, subversion
