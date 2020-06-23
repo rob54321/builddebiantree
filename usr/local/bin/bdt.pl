@@ -7,7 +7,7 @@ use File::Basename;
 use File::Find;
 use Getopt::Std;
 use Cwd;
-use File::Glob ':glob';
+use File::Glob;
 
 # sub to write config file of parameters that have changed.
 # the hash %config contains the key value pairs of the changed variables
@@ -51,56 +51,6 @@ sub getconfig {
     }
 }
 
-# sub to replace a link with the files it points to.
-# this is used for the live system since files
-# cannot be installed during the building of a live system.
-sub replaceLink {
-	my($link) = $File::Find::name;
-	
-	# store current dir
-	my($currentdir) = cwd;
-	
-	# get parent dir of link
-	$parentdir = dirname($link);
-	
-	# check if link is a link and it ends in .lnk
-	if ( (-l $link) && ($link =~ /\.lnk$/)) {
-		# get original file that link points to
-		$original = readlink $link;
-		
-		# if file is a tar file untar it
-		if ($original =~ /\.tar.gz$/) {
-			# .tar.gz file untar it
-			system("tar -xpszf " . $original);
-		}
-		elsif ($original =~ /\.bin$/) {
-			# .bin file execute it
-			system($original);
-		}
-		else {
-			# copy the file or directory to here
-			print "including: $original \n";
-			system("cp -a " . $original . " " . $parentdir);
-		}
-		# stop descending
-		$File::Find::prune = 1;
-		
-		# remove the link
-		unlink($link);
-	}
-}
-
-# sub to insert the contents of packages for the live system.
-# the name of the directory in which the package resides must be
-# appended by -live.
-# the first paramter is the full directory name
-sub insertContents {
-	my($filename) = $_[0];
-	
-	# search for all links in sub directories of filename
-	find \&replaceLink, $filename;
-	
-} 
 # sub to make Packages.gz and Packages.bz2 from the packages file
 # architecture must be passed as a parameter
 sub makeCompressedPackages {
@@ -141,22 +91,24 @@ sub getpackagefield {
 
 # movearchivetotree:
 # first parameter is full path to the archive
-# second parameter is status = debpackage | rename
-# debpackage means the archive is in standard form and needs to be moved
-# rename means the archive must be renamed to standard form and then moved.
+# second parameter is status = debpackage | subversion
+# debpackage means the archive is a debpackage, rename it to standard form and copy to archive
+# subversion means the archive was exported from subversion, built, renamed to standard form and moved to archive
 # all destination directories are created
-# destination = debianpool / section / firstchar / packagename
+# destination = debianpool / section / firstchar of archive / packagename
 # any architecture is moved.
 sub movearchivetotree {
-	my($archive, $status) = @_;
+	my($origarchive, $status) = @_;
 
 	# get section to use as first dir under pool
-	$section = getpackagefield($archive, "Section");
+	$section = getpackagefield($origarchive, "Section");
 
 	# get package name
-	$packagename = getpackagefield($archive, "Package");
-	$version = getpackagefield($archive, "Version");
-	$architecture = getpackagefield($archive, "Architecture");
+	$packagename = getpackagefield($origarchive, "Package");
+	$version = getpackagefield($origarchive, "Version");
+	$architecture = getpackagefield($origarchive, "Architecture");
+
+#print "movearchivetotree: new file: $origarchive $status $packagename $version $architecture\n";
 		
 	# make dir under pool/firstletter of packagename/packagename
 	# get first character of string
@@ -172,154 +124,110 @@ sub movearchivetotree {
 	# get version of package in the archive
 	$currentdir = cwd;
 	chdir $destination;
-	@rep_files = <*$architecture.deb>;
-	$insert_file = "true";
-	
-	# if the version of the found file is less than all the versions in the repository
-	# do not insert
-	foreach $file (@rep_files) {
+	# make a list of all files with same package name and architecture
+	@repository_files = glob("$packagename*$architecture.deb");
+
+	# There may be multiple files with different versions in the repository
+	# if there are two or more files then check that the file being inserted
+	# has a version greater than the maximum version
+	# set maximum version
+	$max_version = 0;
+
+	# find the maximum version
+	foreach $file_in_repository (@repository_files) {
 		# compare versions
-		$version_in_repository = getpackagefield($file, "Version");
-		if ($version le $version_in_repository) {
-			$insert_file = "false";
-		}
+		$version_in_repository = getpackagefield($file_in_repository, "Version");
+		$max_version = $version_in_repository if $max_version < $version_in_repository;
+#print "move: max_version = $max_version\n";
+
 	}
-	chdir $currentdir;
 	
-	if ($force eq "true" || $insert_file eq "true") {
-		# delete previous versions of files in the repository with the same packagename, architecture in the destination
+	# Insert file to repository if the new version > than the version in the repository
+	chdir $currentdir;
+	if ($version > $max_version) {
+		# delete all previous versions of files in the repository with the same packagename,
+		# architecture in the destination
 		system("rm -f " . $destination . "/" . $packagename . "*" . $architecture . ".deb");
 	
-		if ($status eq "rename") {
-				# make standard name and move
-				system("dpkg-name -o " . $archive . " > /dev/null 2>&1");
-		
-				# archive name has changed to standard name
-				$archive = dirname($archive) . "/". $packagename . "_". $version . "_" . $architecture . ".deb";
-		}
+
+		# make standard name and move
+		system("dpkg-name -o " . $origarchive . " > /dev/null 2>&1");
+
+		# archive name has changed to standard name
+		$archive = $packagename . "_". $version . "_" . $architecture . ".deb";
 
 		#display message for move debpackage or build and move
 		if ($status eq "debpackage") {
-			print "debpackage: ", basename($archive), " -> $destination\n";
+			# original file was a debpackage copy it
+			print "debpackage: ", $origarchive, " -> $destination/$archive\n";
 			system ("cp " . $archive . " " . $destination);
 		} else {
-			print "subversion source:     ", basename($archive), " -> $destination\n";
+			# original file was extracted from subversion and built, move it
+			print "subversion source:  ", $origarchive, " -> $destination/$archive\n";
 			system ("mv " . $archive . " " . $destination);
 		}
 		# chmod of file in archive to 0666
-		$pname = $destination . "/" . basename($archive);
+		$pname = $destination . "/" . $archive;
 		chmod (0666, $pname);
+	} else {
+		# version of new file < existing file
+		# file is not inserted
+		print "$origarchive not inserted $version <= $max_version\n";
 	}
 }
 
-# sub to determine if a control file is valid or not
-# returns true if valid, false otherwise
-# the file is checked to see if there is a Package: Version: Maintainer: Description: fields
-# if the control file is in linux source it is invalid.
-sub isControlFileValid {
-	$controlfile = $_[0];
-	my($package,$version,$maintainer,$description) = (0, 0, 0, 0);
-	
-	# if control file is in a linux-source directory ignore it
-	if ($controlfile =~ /linux-source/i) {
-		print "invalid control file: $controlfile\n";
-		return 0;
-	}
-	
-	# open file for reading
-	open( CONTROLFILE, '<', $controlfile) or die $!;
-	while (<CONTROLFILE>) {
-		$package = 1 if /Package:/;
-		$version = 1 if /Version:/;
-		$maintainer = 1 if /Maintainer:/;
-		$description = 1 if /Description:/;
-	}
-	close CONTROLFILE;
-	
-	if ($package and $version and $maintainer and $description) {
-		return 1;
-	} else {
-		print "invalid control file: $controlfile\n";
-		return 0;
-	}
-}
-# add_archive will recursively move all .deb files to the debian repository
-# it will also check each directory for  DEBIAN/control file. If this file exists
-# the package will be built and the archive will be saved in the same directory
-# as the archive directory. The archive is renamed by movearchivetotree when insserted
-# into the repository.
+# add_archive will recursively copy all .deb files to the debian repository
+# the package will be renamed to standard form by movetoarchivetree
 sub add_archive {
 	# get current selection if it is a file
 	$fullfilename = $File::Find::name;
 	$filename = $_;
         $currentworkingdir = $File::Find::dir;
+#print "add_archive: filename = $filename\n";
         
-	# for each .deb file process it but not in linux-source
+	# for each .deb file, not directory, process it but not in linux-source
 	if( -f $filename && ($filename !~ /linux-source/)) {
 		# move archive to debian dist tree and create dirs
-		# if file is a .deb file and arch is defined
-		# then only move for given arch
-		if ($arch && ($filename =~ /\.deb$/)) {
-			# get arch of package
-			$currentarch = getpackagefield($filename, "Architecture");
-			if (($filename =~ /\.deb$/) && ($currentarch eq $arch || $currentarch eq "all")) {
-				movearchivetotree($filename, "debpackage");
-			}
-		} else {
-			# arch is undefined move all .deb files to archive
-			if ($filename =~ /\.deb$/) {
-				movearchivetotree($filename, "debpackage");
-			}
+		if ($filename =~ /\.deb$/) {
+#print "add_archive: movearchivetotree ($filename, debpackage)\n";
+			print "\n";
+			print "--------------------------------------------------------------------------------\n";
+			movearchivetotree($filename, "debpackage");
 		}
 	}
-	# a directory was found
-	# check if it has DEBIAN/control in it
-	# this is also used for building a package from subversion
-	elsif ( -T ($filename . "/" . "/DEBIAN/control")) {
+}
 
-		# verify that this is a valid control file
-		if (isControlFileValid($filename . "/" . "DEBIAN/control")) {
+# called with buildpackage(workingdirectory, package list)
+# this function builds a source package exported from subversion
+# into a debian package. The package is then moved to the archive using movetoarchivetree
+# movetoarchivetree is called with debian package name and status subversion 
+sub buildpackage {
+	# get parameters
+	my($workdir, @package_list) = @_;
 
-			# this is a debian package build it
-			$parentdir = dirname($fullfilename);
-			$debdir = basename($fullfilename);
+	# change to working directory
+	chdir $workdir;
 
-			# if arch is defined and it the source arch then build and move
-			# get architecture from control file
-			if ($arch) {
-				$arch_found = "false";
-				open( CONTROL, '<', $filename . "/" . "DEBIAN/control") or die $!;
-				while (<CONTROL>) {
-					if (/Architecture: *$arch/ || /Architecture: *all/) {
-						$arch_found = "true";
-					}
-				}
-				if ($arch_found eq "false") {$File::Find::prune = 1; return}
-			}
-			# if we are in the build directory
-			if ($currentworkingdir eq ".") {
-				# in build directory change to parent to build
-				chdir $parentdir;
-			}
-			
-			# if the directory name in which the package resides is appended by "-live"
-			# then all links must be downloaded into the package directory before building
-			# it may also be necessary to untar files.
-			# if ($filename =~ /-live$/) { insertContents $filename; }
-			insertContents $filename;
+	# for each package, build the package
+	foreach $package (@package_list) {
 
-			$rc = system("dpkg -b " . $debdir . " >/dev/null 2>&1");
-			if ($rc != 0) {
-				print "error in $debdir\n";
-				exit;
-			}
-			$debname = $debdir . ".deb";
+		# build the package
+		print "\n";
+		print "--------------------------------------------------------------------------------\n";
+		print "building package $package\n";
+		$rc = system("dpkg-deb -b " . $package . " >/dev/null");
+		# check if build was successful
+		if ($rc == 0) {
+			# debian package name = package.deb
+			my $debpackage = $package . ".deb";
 
-			movearchivetotree($debname, "rename");
-		
-			# do not descend futher.
-			$File::Find::prune = 1;
+			# move it to the tree
+			movearchivetotree($debpackage, "subversion");
+		} else {
+			# control file in DEBIAN directory is not valid or does not exist
+			print "control file of $package is not valid\n";
 		}
+
 	}
 }
 
@@ -335,7 +243,6 @@ sub usage {
 -d distribution [debian|ubuntu|common|rpi]	Default: $dist\
 -S full path of subversion repository default: $subversion\
 -f full path filename to be added\
--F force insertion of package into repository default: $force\
 -w set working directory: $workingdir\
 -R reset back to defaults and exit\n";
     exit();
@@ -351,7 +258,6 @@ $workingdir = "/mnt/hdint/tmp/debian";
 $subversion = "/mnt/svn";
 $repository = "file://" . $subversion . "/debian/";
 $debianroot = "/mnt/hdd/mydebian";
-$force = "false";
 
 # if no arguments given show usage
 if (! $ARGV[0]) {
@@ -359,7 +265,7 @@ if (! $ARGV[0]) {
 }
 
 # get command line options
-getopts('hFS:a:d:elp:r:x:d:sf:w:R');
+getopts('hS:a:d:elp:r:x:d:sf:w:R');
 
 # reset by deleting config file and exit
 if ($opt_R) {
@@ -372,10 +278,6 @@ if ($opt_R) {
 # can override them if necessary
 getconfig;
 
-# set force option to force a package to be inserted into mydebian
-if ($opt_F) {
-	$force = "true";
-}
 # set subversion respository
 if ($opt_S) {
         $subversion = $opt_S;
@@ -457,7 +359,6 @@ if (($dist eq "rpi") and ($arch ne "armhf")) {
 
 
 # set up commands
-$repository = "file://" . $subversion . "/debian/";
 $exportcommand = "svn --force -q export " . $repository;
 
 
@@ -478,6 +379,7 @@ if ($dist eq "common") {
     @scan_arch = qw/i386 amd64/;
 }
 
+# make Packages directories if they don't exist
 foreach $architem (@scan_arch) {
   	$packagesdir = $debianroot . "/dists/" . $dist . "/main/binary-" . $architem;
    	system("mkdir -p " . $packagesdir) if ! -d $packagesdir;
@@ -507,8 +409,9 @@ if ($opt_p) {
     	$command = $exportcommand . $package . " " . $workingdir . "/" . $package;
     	system($command);
     }
-    find \&add_archive, $workingdir;
-    removeworkingdir;
+    # build the package and move it to the tree
+    buildpackage($workingdir, @package_list);
+    # removeworkingdir;
 }
 # process a dir recursively and copy all debian i386 archives to tree
 # search each dir for DEBIAN/control. If found build package.
