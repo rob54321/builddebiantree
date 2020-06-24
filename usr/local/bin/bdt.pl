@@ -251,13 +251,12 @@ sub usage {
 # main entry point
 # default values
 $configFile = "/root/.bdt.rc";
-$dist = "none";
-$rpiarch = "armhf";
+$dist = "home";
 @all_arch = ("amd64", "i386", "armhf");
 $workingdir = "/mnt/hdint/tmp/debian";
 $subversion = "/mnt/svn";
 $repository = "file://" . $subversion . "/debian/";
-$debianroot = "/mnt/hdd/mydebian";
+$debianroot = "/mnt/hdd/debhome";
 
 # if no arguments given show usage
 if (! $ARGV[0]) {
@@ -311,16 +310,6 @@ if ($opt_x) {
         $config_changed = "true";
 }
 
-# if distribution is rpi then arch must be armhf
-if ($dist eq "rpi") {
-    $arch = $rpiarch;
-}
-
-# set the architecture, if dist is rpi the arch is armhf
-if (($opt_a) and ($dist ne "rpi")) {
-    $arch = $opt_a;
-}
-
 # set working directory if changed
 if ($opt_w) {
     $workingdir = $opt_w;
@@ -341,47 +330,21 @@ if ($opt_h or ($no_args eq "true")) {
 }
 
 
-# check a valid distribution was given
-if (! (($dist eq "ubuntu") || ($dist eq "debian") || ($dist eq "common") || ($dist eq "rpi"))){
-	print "$dist: is not a valid distribution\n";
-	exit;
-}
-
-# check for invalid combination of dist and arch
-if ((($dist eq "ubuntu") and ($arch eq $rpiarch)) or (($dist eq "debian") and ($arch eq $rpiarch))) {
-    print "invalid combination of distribution and architecture\n";
-    exit;
-}
-if (($dist eq "rpi") and ($arch ne "armhf")) {
-    print "invalid combination of distribution and architecture\n";
-    exit;
-}
-
-
 # set up commands
 $exportcommand = "svn --force -q export " . $repository;
 
 
 # set up values of directories
-$debianpool = $debianroot . "/pool/$dist";
+$debianpool = $debianroot . "/pool/";
 
 #mkdir directories
 system("mkdir -p " . $debianroot) if ! -d $debianroot;
 system("mkdir -p " . $debianpool) if ! -d $debianpool;
 system("mkdir -p " . $workingdir) if ! -d $workingdir;
 
-# do not make binary-i386 and binary-amd64 for armhf architecture when distribution is rpi
-if ($dist eq "common") {
-    @scan_arch = @all_arch;
-} elsif ($dist eq "rpi") {
-    @scan_arch = qw/armhf/;
-} else {
-    @scan_arch = qw/i386 amd64/;
-}
-
 # make Packages directories if they don't exist
 foreach $architem (@scan_arch) {
-  	$packagesdir = $debianroot . "/dists/" . $dist . "/main/binary-" . $architem;
+  	my $packagesdir = $debianroot . "/dists/" . $dist . "/main/binary-" . $architem;
    	system("mkdir -p " . $packagesdir) if ! -d $packagesdir;
 }	
 
