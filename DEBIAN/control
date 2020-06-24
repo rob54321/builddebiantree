@@ -2,7 +2,7 @@ Package: builddebiantree
 Version: 1.7
 Architecture: all
 Maintainer: Robert Key robkey@mighty.co.za
-Depends: perl, dpkg, bzip2, tar, dpkg-dev, apt-utils, subversion
+Depends: perl, dpkg, bzip2, tar, dpkg-dev, apt-utils, subversion, gpg
 Section: myown
 Priority: optional
 Description: This perl script builds a debian tree from source in svn or loads deb files from directories.

@@ -342,7 +342,7 @@ foreach $architem (@all_arch) {
 # checkout all debian packages from svn/debian, build and place in tree
 if ($opt_e) {
 	# local variable
-	my @package_list
+	my @package_list;
 	# work in the working directory
 	chdir $workingdir;
 
