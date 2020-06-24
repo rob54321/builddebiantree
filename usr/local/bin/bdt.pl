@@ -62,9 +62,7 @@ sub makeCompressedPackages {
 	# save current dir
 	my($currentdir) = cwd;
 	chdir $packagesdir;
-	system("cp Packages P");
-	system("gzip -f Packages");
-	system("mv P Packages");
+	system("gzip -f -k Packages");
 	system("bzip2 -f -k Packages");
 
 	# set back to previous dir
@@ -198,7 +196,7 @@ sub add_archive {
 }
 
 # called with buildpackage(workingdirectory, package list)
-# this function builds a source package exported from subversion
+# this function builds a source package(s) exported from subversion
 # into a debian package. The package is then moved to the archive using movetoarchivetree
 # movetoarchivetree is called with debian package name and status subversion 
 sub buildpackage {
@@ -237,10 +235,8 @@ sub usage {
 -l list debian packages in repository\
 -p [\"pkg1 pkg2 ...\"] extract package list from subversion -> build -> add to distribution tree\
 -r [\"dir1 dir2 ...\"] recurse directory list containing full paths, build -> add to repository\
--a architecture [i386|amd64|armhf]  default nothing\
 -x destination path of archive default: $debianroot\
 -s scan packages to make Packages\
--d distribution [debian|ubuntu|common|rpi]	Default: $dist\
 -S full path of subversion repository default: $subversion\
 -f full path filename to be added\
 -w set working directory: $workingdir\
@@ -257,6 +253,7 @@ $workingdir = "/mnt/hdint/tmp/debian";
 $subversion = "/mnt/svn";
 $repository = "file://" . $subversion . "/debian/";
 $debianroot = "/mnt/hdd/debhome";
+$debianpool = $debianroot . "/pool";
 
 # if no arguments given show usage
 if (! $ARGV[0]) {
@@ -264,7 +261,14 @@ if (! $ARGV[0]) {
 }
 
 # get command line options
-getopts('hS:a:d:elp:r:x:d:sf:w:R');
+getopts('hS:elp:r:x:d:sf:w:R');
+
+# if no options or h option print usage
+if ($opt_h or ($no_args eq "true")) {
+	usage;
+	# exit
+	exit 0;
+}
 
 # reset by deleting config file and exit
 if ($opt_R) {
@@ -277,7 +281,7 @@ if ($opt_R) {
 # can override them if necessary
 getconfig;
 
-# set subversion respository
+# set subversion respository path
 if ($opt_S) {
         $subversion = $opt_S;
         
@@ -294,12 +298,7 @@ if ($opt_l) {
     system($command);
 }
 
-# set the distribution
-if ($opt_d) {
-    $dist = $opt_d;
-}
-
-# set up destinaton if given on command line
+# set up destinaton path of repository if given on command line
 if ($opt_x) {
 
     	$debianroot = $opt_x;
@@ -324,18 +323,9 @@ if ($opt_w) {
 writeconfig if $config_changed;
 
 
-# if no options or h option print usage
-if ($opt_h or ($no_args eq "true")) {
-	usage;
-}
-
 
 # set up commands
 $exportcommand = "svn --force -q export " . $repository;
-
-
-# set up values of directories
-$debianpool = $debianroot . "/pool/";
 
 #mkdir directories
 system("mkdir -p " . $debianroot) if ! -d $debianroot;
@@ -343,7 +333,7 @@ system("mkdir -p " . $debianpool) if ! -d $debianpool;
 system("mkdir -p " . $workingdir) if ! -d $workingdir;
 
 # make Packages directories if they don't exist
-foreach $architem (@scan_arch) {
+foreach $architem (@all_arch) {
   	my $packagesdir = $debianroot . "/dists/" . $dist . "/main/binary-" . $architem;
    	system("mkdir -p " . $packagesdir) if ! -d $packagesdir;
 }	
@@ -351,23 +341,31 @@ foreach $architem (@scan_arch) {
     
 # checkout all debian packages from svn/debian, build and place in tree
 if ($opt_e) {
-    # export all debian packages in svn/debian to working directory
-    $command = $exportcommand . " " . $workingdir;
-    system($command);
+	# work in the working directory
+	chdir $workingdir;
 
-    find \&add_archive, $workingdir;
-    removeworkingdir;        # write values to resp variables
-        $workingdir = $config{"workingdir"} if $config{"workingdir"};
-        $subversion = $config{"subversion"} if $config{"subversion"};
-        $debianroot = $config{"debianroot"} if $config{"debianroot"};
+	# empty the working directory
+	removeworkingdir;
 
+	# export all debian packages in svn/debian to working directory
+	$command = $exportcommand . " " . $workingdir;
+	system($command);
+
+	# make a list of all directories in working directory.
+	# each directory is a package. Do no descend
+	@files = glob("*");
+	foreach my $dir (@files) {
+		push (@package_list, $dir) if -d $dir;
+	}
+	# build the packages
+	buildpackage($workingdir, @package_list);	
 }
 
 if ($opt_p) {
 	# empty working dir incase
     removeworkingdir;
     # checkout each package in list $opt_p is a space separated string
-    @package_list = split /\s+/, $opt_p;
+    my @package_list = split /\s+/, $opt_p;
     foreach $package (@package_list) {
     	$command = $exportcommand . $package . " " . $workingdir . "/" . $package;
     	system($command);
@@ -398,32 +396,25 @@ if ($opt_f) {
 	movearchivetotree($fileAdd, "debpackage");			
 }
 
-# make Packages file
+# scan pool and make Packages file
 if ($opt_s) {
 
 	#change to debian root
 	chdir $debianroot;
 
-	# arch is defined then scan only for that arch, else do for all_arch
-	if($arch) {
-                print "dist = $dist :: arch = $arch\n";
-		system("dpkg-scanpackages -m -a " . $arch . " pool/$dist > dists/" . $dist . "/main/binary-". $arch . "/Packages");
-		makeCompressedPackages($arch);
-	} else {
-                # if dist is common scan for all architectures, else scan for i386 and amd64
-                if ($dist eq "common") {
-                    @scan_arch = @all_arch;
-                } else {
-                    @scan_arch = qw/i386 amd64/;
-                }
-		foreach $architem (@scan_arch) {
-                        print "dist = $dist :: arch = $architem\n";
-			system("dpkg-scanpackages -m -a " . $architem . " pool/$dist > dists/" . $dist . "/main/binary-". $architem . "/Packages");
-			makeCompressedPackages($architem);
-		}
+	# there is only one distribution ie $debianroot / dists / home 
+	# which contains amd64, i386 and armhf
+	# scan all three architectures and write to dists/home/main/binary-arch/Packages
+	foreach my $arch (@all_arch) {
+		system("apt-ftparchive  --arch " . $arch . " packages pool > dists/" . $dist . "/main/binary-". $arch . "/Packages");
+
+		# make a Packages.gz and Packages.bzip2 in the directory
+		makecompressedpackages($arch);		
+		
 	}
 
 	# make the release file
+	# there is only one release file for all architectures in debianroot/dists/home
 	chdir $debianroot . "/dists/" . $dist;
 	unlink("Release");
 	if ($dist eq "common") {
