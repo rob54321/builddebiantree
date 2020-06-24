@@ -341,6 +341,8 @@ foreach $architem (@all_arch) {
     
 # checkout all debian packages from svn/debian, build and place in tree
 if ($opt_e) {
+	# local variable
+	my @package_list
 	# work in the working directory
 	chdir $workingdir;
 
@@ -372,7 +374,7 @@ if ($opt_p) {
     }
     # build the package and move it to the tree
     buildpackage($workingdir, @package_list);
-    # removeworkingdir;
+    removeworkingdir;
 }
 # process a dir recursively and copy all debian i386 archives to tree
 # search each dir for DEBIAN/control. If found build package.
@@ -409,7 +411,7 @@ if ($opt_s) {
 		system("apt-ftparchive  --arch " . $arch . " packages pool > dists/" . $dist . "/main/binary-". $arch . "/Packages");
 
 		# make a Packages.gz and Packages.bzip2 in the directory
-		makecompressedpackages($arch);		
+		makeCompressedPackages($arch);		
 		
 	}
 
@@ -417,15 +419,10 @@ if ($opt_s) {
 	# there is only one release file for all architectures in debianroot/dists/home
 	chdir $debianroot . "/dists/" . $dist;
 	unlink("Release");
-	if ($dist eq "common") {
-            $archlist = "i386 amd64 armhf";
-        } elsif ($dist eq "rpi") {
-            $archlist = "armhf";
-        } else {
-            # dist is ubuntu or debian
-            $archlist = "i386 amd64";
-        }
-        system("apt-ftparchive -o=APT::FTPArchive::Release::Components=main -o=APT::FTPArchive::Release::Codename=" . $dist . " -o=APT::FTPArchive::Release::Origin=Debian -o=APT::FTPArchive::Release::Suite=stable -o=APT::FTPArchive::Release::Label=Debian -o=APT::FTPArchive::Release::Description=\"my stuff\" -o=APT::FTPArchive::Release::Architectures=\"$archlist\" release . > ../Release");
-	system("mv ../Release .");
+        system("apt-ftparchive -c=/usr/local/bin/apt-ftparchive-home.conf release . > Release");
+
+	# the release file has changed , it must be signed
+	system("gpg --clearsign -o InRelease Release");
+	system("gpg -abs -o Release.gpg Release");
 }
 
