@@ -9,6 +9,60 @@ use Getopt::Std;
 use Cwd;
 use File::Glob;
 
+#!/usr/bin/perl -w
+
+# insert a default string into a list at the given index
+# move the elements to the right of the index, one position to the right.
+# insert the string at the index +1
+sub insertstring {
+	my $index = $_[0];
+	# max index
+	my $maxindex = $#ARGV;
+	for ( my $i = $maxindex; $i >= $index; $i--) {
+		my $newi = $i + 1;
+		$ARGV[$newi] = $ARGV[$i];
+	}
+	# insert default string at index
+	$ARGV[$index] = $pubkey . " " . $secretkey;
+}
+
+# this sub operates on the list @ARGV
+# it search for the switch -b
+# if -b is not followed by two arguments, it inserts the default arguments after -b.
+# this is done so -b can be supplied with arguments
+# or no arguments, in which case the 2 defaults will be inserted
+# no parameters are passed and none are returned.
+# @ARGV is altered if -b has no parameters
+sub defaultparameter {
+	
+
+	# index of position of -b
+	my $i = 0;
+	foreach my $param (@ARGV) {
+		# check for a -b and that it is not the last parameter
+		if ($param eq "-b") {
+			if ($i < $#ARGV) {
+				# -b has been found at $ARGV[$i] and it is not the last parameter
+				# if the next parameter is a switch -something
+				# then -b has no arguments
+				# check if next parameter is a switch
+				if ($ARGV[$i+1] =~ /^-/) {
+					# -b is followed by a switch and is not the last switch
+					# insert the 2 default filenames as a string at index $i+1
+					$index = $i + 1;
+					insertstring($index);
+				}
+			} else {
+				# -b is the last index then the default parameters for -b must be appended
+				$index = $i + 1;
+				insertstring($index); 
+			}
+		}
+		# increment index counter
+		$i++;
+	}
+} 
+
 # sub to write config file of parameters that have changed.
 # the hash %config contains the key value pairs of the changed variables
 # all three vars workingdir, subversion and debianroot are written
@@ -231,7 +285,7 @@ sub buildpackage {
 
 sub usage {
     print "usage: builddebiantree [options] filelist\
--b backup secret and public key to : \"$pubkey $secretkey\"\
+-b backup public and secret key to : \"file1 file2\" if blank use defaults $pubkey $secretkey\
 -e extract all from subversion -> build all -> add to distribution tree\
 -l list debian packages in repository\
 -p [\"pkg1 pkg2 ...\"] extract package list from subversion -> build -> add to distribution tree\
@@ -257,32 +311,33 @@ $debianroot = "/mnt/hdd/debhome";
 $debianpool = $debianroot . "/pool";
 $pubkey = $debianroot . "/keyFile";
 $secretkey = $debianroot . "/secretkeyFile.gpg";
+
 # if no arguments given show usage
 $no_arg = @ARGV;
 if ($no_arg == 0) {
 	$no_args = "true";
 }
-print "no of args $no_arg\n";
-print "ARGV: " . @ARGV . "\n";
-print "ARGV: @ARGV \n";
 
-foreach my $item (@ARGV) {
-	print "arg $item\n";
-}
+# check if -b has an argument list after it.
+# if not insert default arguments			
+
+################## testing ##################
+# print "before: @ARGV\n";
+defaultparameter();
+# print "after:  @ARGV\n";
 
 # get command line options
 getopts('b:hS:elp:r:x:d:sf:w:R');
 
-print "after getopts\n";
-print "no of args $no_arg\n";
-print "ARGV: " . @ARGV . "\n";
-print "ARGV: @ARGV \n";
+################# testing ###################
+# print "after getopts\n";
+# print "no of args $no_arg\n";
+# print "ARGV: @ARGV \n";
 
-foreach my $item (@ARGV) {
-	print "arg $item\n";
-}
-
-exit 0;
+# foreach my $item (@ARGV) {
+#	print "item: $item\n";
+# }
+#############################################
 
 # if no options or h option print usage
 if ($opt_h or ($no_args eq "true")) {
@@ -295,13 +350,14 @@ if ($opt_h or ($no_args eq "true")) {
 # public key is written in armor format
 # secret key is binary
 
-print "option B:$opt_B\n";
 if ($opt_b) {
 	($pubkey, $secretkey) = split /\s+/, $opt_b;
 	my $backuppub = "gpg --output ". $pubkey . " --export --armor";
+	print "backing up public key to: " . $pubkey . "\n";
 	system($backuppub) == 0 or die "@backuppub failed: $?\n";
 
 	my $backupsec = "gpg --output ". $secretkey . " --export-secret-keys --export-options backup";
+	print "backing up secret key to: " . $secretkey . "\n";
 	system($backupsec) == 0 or die "@backupsec failed: $?\n";
 }
 
