@@ -231,6 +231,7 @@ sub buildpackage {
 
 sub usage {
     print "usage: builddebiantree [options] filelist\
+-b backup secret and public key to : \"$pubkey $secretkey\"\
 -e extract all from subversion -> build all -> add to distribution tree\
 -l list debian packages in repository\
 -p [\"pkg1 pkg2 ...\"] extract package list from subversion -> build -> add to distribution tree\
@@ -254,20 +255,54 @@ $subversion = "/mnt/svn";
 $repository = "file://" . $subversion . "/debian/";
 $debianroot = "/mnt/hdd/debhome";
 $debianpool = $debianroot . "/pool";
-
+$pubkey = $debianroot . "/keyFile";
+$secretkey = $debianroot . "/secretkeyFile.gpg";
 # if no arguments given show usage
-if (! $ARGV[0]) {
+$no_arg = @ARGV;
+if ($no_arg == 0) {
 	$no_args = "true";
+}
+print "no of args $no_arg\n";
+print "ARGV: " . @ARGV . "\n";
+print "ARGV: @ARGV \n";
+
+foreach my $item (@ARGV) {
+	print "arg $item\n";
 }
 
 # get command line options
-getopts('hS:elp:r:x:d:sf:w:R');
+getopts('b:hS:elp:r:x:d:sf:w:R');
+
+print "after getopts\n";
+print "no of args $no_arg\n";
+print "ARGV: " . @ARGV . "\n";
+print "ARGV: @ARGV \n";
+
+foreach my $item (@ARGV) {
+	print "arg $item\n";
+}
+
+exit 0;
 
 # if no options or h option print usage
 if ($opt_h or ($no_args eq "true")) {
 	usage;
 	# exit
 	exit 0;
+}
+
+# backup up keys
+# public key is written in armor format
+# secret key is binary
+
+print "option B:$opt_B\n";
+if ($opt_b) {
+	($pubkey, $secretkey) = split /\s+/, $opt_b;
+	my $backuppub = "gpg --output ". $pubkey . " --export --armor";
+	system($backuppub) == 0 or die "@backuppub failed: $?\n";
+
+	my $backupsec = "gpg --output ". $secretkey . " --export-secret-keys --export-options backup";
+	system($backupsec) == 0 or die "@backupsec failed: $?\n";
 }
 
 # reset by deleting config file and exit
