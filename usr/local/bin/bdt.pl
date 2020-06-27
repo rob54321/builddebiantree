@@ -321,13 +321,6 @@ $secretkey = $debianroot . "/secretkeyFile.gpg";
 # if no arguments given show usage
 $no_arg = @ARGV;
 
-# if no options or h option print usage
-if ($opt_h or ($no_arg == 0)) {
-	usage;
-	# exit
-	exit 0;
-}
-
 # check if -b has an argument list after it.
 # if not insert default arguments			
 
@@ -338,6 +331,13 @@ defaultparameter();
 
 # get command line options
 getopts('b:hS:elp:r:x:d:sf:w:R');
+
+# if no options or h option print usage
+if ($opt_h or ($no_arg == 0)) {
+	usage;
+	# exit
+	exit 0;
+}
 
 ################# testing ###################
 # print "after getopts\n";
