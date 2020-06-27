@@ -3,6 +3,7 @@
 # this programme exports all debian source packages from svn and
 # builds the debian packages, places then in the debian tree, builds the
 # Packages file, updates apt-get.
+use File::Path;
 use File::Basename;
 use File::Find;
 use Getopt::Std;
@@ -12,8 +13,14 @@ use File::Glob;
 #!/usr/bin/perl -w
 
 # insert a default string into a list at the given index
-# move the elements to the right of the index, one position to the right.
-# insert the string at the index +1
+# the elements from and including the index are shifted one position to the right.
+# the list is increased by one.
+# the shift starts from the right hand side and moves to the left
+# so the values of the shifted elements are retained.
+# the index is the position + 1 of the -b 
+# insert the string at the index
+# the call: insertstring(index)
+# ARGV is altered. Nothing is returned
 sub insertstring {
 	my $index = $_[0];
 	# max index
@@ -34,9 +41,8 @@ sub insertstring {
 # no parameters are passed and none are returned.
 # @ARGV is altered if -b has no parameters
 sub defaultparameter {
-	
 
-	# index of position of -b
+	# find index of position of -b
 	my $i = 0;
 	foreach my $param (@ARGV) {
 		# check for a -b and that it is not the last parameter
@@ -168,7 +174,7 @@ sub movearchivetotree {
 
 	# make directory
 	$destination = $debianpool . "/" . $section . "/" . $firstchar . "/" . $packagename;
-	system("mkdir -p " . $destination) if ! -d $destination;
+	mkpath($destination) if ! -d $destination;
 
 	# compare the version of the file being inserted to the existing versions
 	# in the destination directory for the same architecture.
@@ -314,8 +320,12 @@ $secretkey = $debianroot . "/secretkeyFile.gpg";
 
 # if no arguments given show usage
 $no_arg = @ARGV;
-if ($no_arg == 0) {
-	$no_args = "true";
+
+# if no options or h option print usage
+if ($opt_h or ($no_arg == 0)) {
+	usage;
+	# exit
+	exit 0;
 }
 
 # check if -b has an argument list after it.
@@ -339,28 +349,6 @@ getopts('b:hS:elp:r:x:d:sf:w:R');
 # }
 #############################################
 
-# if no options or h option print usage
-if ($opt_h or ($no_args eq "true")) {
-	usage;
-	# exit
-	exit 0;
-}
-
-# backup up keys
-# public key is written in armor format
-# secret key is binary
-
-if ($opt_b) {
-	($pubkey, $secretkey) = split /\s+/, $opt_b;
-	my $backuppub = "gpg --output ". $pubkey . " --export --armor";
-	print "backing up public key to: " . $pubkey . "\n";
-	system($backuppub) == 0 or die "@backuppub failed: $?\n";
-
-	my $backupsec = "gpg --output ". $secretkey . " --export-secret-keys --export-options backup";
-	print "backing up secret key to: " . $secretkey . "\n";
-	system($backupsec) == 0 or die "@backupsec failed: $?\n";
-}
-
 # reset by deleting config file and exit
 if ($opt_R) {
     unlink($configFile);
@@ -381,12 +369,6 @@ if ($opt_S) {
         
         # set flag to say a change has been made
         $config_changed = "true";
-}
-
-# list all packages
-if ($opt_l) {
-    $command = "svn -v list " . $repository;
-    system($command);
 }
 
 # set up destinaton path of repository if given on command line
@@ -418,18 +400,47 @@ writeconfig if $config_changed;
 # set up commands
 $exportcommand = "svn --force -q export " . $repository;
 
-#mkdir directories
-system("mkdir -p " . $debianroot) if ! -d $debianroot;
-system("mkdir -p " . $debianpool) if ! -d $debianpool;
-system("mkdir -p " . $workingdir) if ! -d $workingdir;
+#make directories if they do not exist
+mkpath($debianroot) if ! -d $debianroot;
+mkpath($debianpool) if ! -d $debianpool;
+mkpath($workingdir) if ! -d $workingdir;
 
 # make Packages directories if they don't exist
 foreach $architem (@all_arch) {
   	my $packagesdir = $debianroot . "/dists/" . $dist . "/main/binary-" . $architem;
-   	system("mkdir -p " . $packagesdir) if ! -d $packagesdir;
+   	mkpath($packagesdir) if ! -d $packagesdir;
 }	
 
+# backup up keys
+# public key is written in armor format
+# secret key is binary
+# keys are written to default files if -b has no parameters
+if ($opt_b) {
+	# get full path names for the public and secret keys
+	($pubkey, $secretkey) = split /\s+/, $opt_b;
+
+	# create their directories if they do not exist
+	# print "pubkey is in " . dirname($pubkey) . "\n";
+	# print "secret key is in " . dirname($secretkey) . "\n";
+	mkpath(dirname($pubkey)) if ! -d dirname($pubkey);
+	mkpath(dirname($secretkey)) if ! -d dirname($secretkey);
+
+	my $backuppub = "gpg --output ". $pubkey . " --export --armor";
+	system($backuppub) == 0 or die "@backuppub failed: $?\n";
+
+	my $backupsec = "gpg --output ". $secretkey . " --export-secret-keys --export-options backup";
+	system($backupsec) == 0 or die "@backupsec failed: $?\n";
+	print "backed up public key to: " . $pubkey . "\n";
+	print "backed up secret key to: " . $secretkey . "\n";
+}
+
     
+# list all packages
+if ($opt_l) {
+    $command = "svn -v list " . $repository;
+    system($command);
+}
+
 # checkout all debian packages from svn/debian, build and place in tree
 if ($opt_e) {
 	# local variable
