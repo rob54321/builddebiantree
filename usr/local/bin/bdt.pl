@@ -64,7 +64,7 @@ sub defaultparameter {
 						insertstring($index, $defparam{$switch});
 					}
 				} else {
-					# -b is the last index then the default parameters for -b must be appended
+					# -* is the last index then the default parameters for -b must be appended
 					$index = $i + 1;
 					insertstring($index, $defparam{$switch}); 
 				}
@@ -201,14 +201,14 @@ sub movearchivetotree {
 	foreach $file_in_repository (@repository_files) {
 		# compare versions
 		$version_in_repository = getpackagefield($file_in_repository, "Version");
-		$max_version = $version_in_repository if $max_version < $version_in_repository;
+		$max_version = $version_in_repository if $max_version lt $version_in_repository;
 #print "move: max_version = $max_version\n";
 
 	}
 	
 	# Insert file to repository if the new version > than the version in the repository
 	chdir $currentdir;
-	if ($version > $max_version) {
+	if ($version gt $max_version) {
 		# delete all previous versions of files in the repository with the same packagename,
 		# architecture in the destination
 		system("rm -f " . $destination . "/" . $packagename . "*" . $architecture . ".deb");
@@ -244,9 +244,9 @@ sub movearchivetotree {
 # the package will be renamed to standard form by movetoarchivetree
 sub add_archive {
 	# get current selection if it is a file
-	$fullfilename = $File::Find::name;
-	$filename = $_;
-        $currentworkingdir = $File::Find::dir;
+#	$fullfilename = $File::Find::name;
+	my $filename = $_;
+#        $currentworkingdir = $File::Find::dir;
 #print "add_archive: filename = $filename\n";
         
 	# for each .deb file, not directory, process it but not in linux-source
@@ -280,7 +280,7 @@ sub buildpackage {
 		print "\n";
 		print "--------------------------------------------------------------------------------\n";
 		print "building package $package\n";
-		$rc = system("dpkg-deb -b " . $package . " >/dev/null");
+		my $rc = system("dpkg-deb -b " . $package . " >/dev/null");
 		# check if build was successful
 		if ($rc == 0) {
 			# debian package name = package.deb
@@ -296,7 +296,7 @@ sub buildpackage {
 	}
 
 	# restore original directory
-	chdir $currendir;
+	chdir $currentdir;
 }
 
 sub usage {
@@ -342,6 +342,7 @@ defaultparameter();
 # print "after:  @ARGV\n";
 
 # get command line options
+our ($opt_s, $opt_h, $opt_e, $opt_l, $opt_R, $opt_k, $opt_K);
 getopts('k:K:b:hS:elp:r:x:d:sf:w:R');
 
 # if no options or h option print usage
@@ -438,10 +439,10 @@ if ($opt_b) {
 	mkpath(dirname($secretkey)) if ! -d dirname($secretkey);
 
 	my $backuppub = "gpg --output ". $pubkey . " --export --armor";
-	system($backuppub) == 0 or die "@backuppub failed: $?\n";
+	system($backuppub) == 0 or die "$backuppub failed: $?\n";
 
 	my $backupsec = "gpg --output ". $secretkey . " --export-secret-keys --export-options backup";
-	system($backupsec) == 0 or die "@backupsec failed: $?\n";
+	system($backupsec) == 0 or die "$backupsec failed: $?\n";
 	print "backed up public key to: " . $pubkey . "\n";
 	print "backed up secret key to: " . $secretkey . "\n";
 }
