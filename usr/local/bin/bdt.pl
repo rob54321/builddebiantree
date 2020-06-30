@@ -186,7 +186,7 @@ sub movearchivetotree {
 	# in the destination directory for the same architecture.
 	# Do not insert an older version, delete and older version in the repository
 	# get version of package in the archive
-	$currentdir = cwd;
+	my $currentdir = cwd;
 	chdir $destination;
 	# make a list of all files with same package name and architecture
 	@repository_files = glob("$packagename*$architecture.deb");
@@ -270,6 +270,7 @@ sub buildpackage {
 	my($workdir, @package_list) = @_;
 
 	# change to working directory
+	my $currentdir = cwd;
 	chdir $workdir;
 
 	# for each package, build the package
@@ -293,6 +294,9 @@ sub buildpackage {
 		}
 
 	}
+
+	# restore original directory
+	chdir $currendir;
 }
 
 sub usage {
@@ -466,6 +470,7 @@ if ($opt_e) {
 	# local variable
 	my @package_list;
 	# work in the working directory
+	my $currentdir = cwd;
 	chdir $workingdir;
 
 	# empty the working directory
@@ -482,7 +487,10 @@ if ($opt_e) {
 		push (@package_list, $dir) if -d $dir;
 	}
 	# build the packages
-	buildpackage($workingdir, @package_list);	
+	buildpackage($workingdir, @package_list);
+
+	# restore original directory
+	chdir $currentdir;
 }
 
 if ($opt_p) {
@@ -524,6 +532,7 @@ if ($opt_f) {
 if ($opt_s) {
 
 	#change to debian root
+	my $currentdir = cwd;
 	chdir $debianroot;
 
 	# there is only one distribution ie $debianroot / dists / home 
@@ -546,5 +555,8 @@ if ($opt_s) {
 	# the release file has changed , it must be signed
 	system("gpg --clearsign -o InRelease Release");
 	system("gpg -abs -o Release.gpg Release");
+
+	# restore original directory
+	chdir $currentdir;
 }
 
