@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/perl -w
 
 # this programme exports all debian source packages from svn and
 # builds the debian packages, places then in the debian tree, builds the
@@ -10,62 +10,68 @@ use Getopt::Std;
 use Cwd;
 use File::Glob;
 
-#!/usr/bin/perl -w
-
-# insert a default string into a list at the given index
-# the elements from and including the index are shifted one position to the right.
+# This sub inserts argument arg at position index in ARGV list.
+# the elements of ARGV from and including the index are shifted one position to the right.
 # the list is increased by one.
 # the shift starts from the right hand side and moves to the left
 # so the values of the shifted elements are retained.
-# the index is the position + 1 of the -b 
-# insert the string at the index
-# the call: insertstring(index)
+# the call: insertstring(index, argument)
 # ARGV is altered. Nothing is returned
+# index and argument to insert are sent as parameters
 sub insertstring {
-	my $index = $_[0];
+	my ($index, $arg) = @_;
+
 	# max index
 	my $maxindex = $#ARGV;
+	# move elements one position to right, starting with the last element
 	for ( my $i = $maxindex; $i >= $index; $i--) {
 		my $newi = $i + 1;
 		$ARGV[$newi] = $ARGV[$i];
 	}
 	# insert default string at index
-	$ARGV[$index] = $pubkey . " " . $secretkey;
+	$ARGV[$index] = $arg;
 }
 
 # this sub operates on the list @ARGV
-# it search for the switch -b
-# if -b is not followed by two arguments, it inserts the default arguments after -b.
-# this is done so -b can be supplied with arguments
-# or no arguments, in which case the 2 defaults will be inserted
+# all the switches in the defparam hash are checked to see if they have arguments.
+# if they do not have arguments, the default arguments are inserted into ARGV
+# so that getopts will not fail.
 # no parameters are passed and none are returned.
-# @ARGV is altered if -b has no parameters
+
 sub defaultparameter {
 
-	# find index of position of -b
-	my $i = 0;
-	foreach my $param (@ARGV) {
-		# check for a -b and that it is not the last parameter
-		if ($param eq "-b") {
-			if ($i < $#ARGV) {
-				# -b has been found at $ARGV[$i] and it is not the last parameter
-				# if the next parameter is a switch -something
-				# then -b has no arguments
-				# check if next parameter is a switch
-				if ($ARGV[$i+1] =~ /^-/) {
-					# -b is followed by a switch and is not the last switch
-					# insert the 2 default filenames as a string at index $i+1
+	# hash supplying arguments to switches
+	my %defparam = ( -b => $pubkey . " " . $secretkey,
+			  -k => $pubkey,
+			  -K => $secretkey);
+
+	# for each switch in the defparam hash find it's index and insert default arguments if necessary
+	foreach my $switch (keys(%defparam)) {
+		# find index of position of -*
+		my $i = 0;
+		foreach my $param (@ARGV) {
+			# check for a -b and that it is not the last parameter
+			if ($param eq $switch) {
+				if ($i < $#ARGV) {
+					# -* has been found at $ARGV[$i] and it is not the last parameter
+					# if the next parameter is a switch -something
+					# then -* has no arguments
+					# check if next parameter is a switch
+					if ($ARGV[$i+1] =~ /^-/) {
+						# -* is followed by a switch and is not the last switch
+						# insert the 2 default filenames as a string at index $i+1
+						$index = $i + 1;
+						insertstring($index, $defparam{$switch});
+					}
+				} else {
+					# -b is the last index then the default parameters for -b must be appended
 					$index = $i + 1;
-					insertstring($index);
+					insertstring($index, $defparam{$switch}); 
 				}
-			} else {
-				# -b is the last index then the default parameters for -b must be appended
-				$index = $i + 1;
-				insertstring($index); 
 			}
+			# increment index counter
+			$i++;
 		}
-		# increment index counter
-		$i++;
 	}
 } 
 
@@ -292,6 +298,8 @@ sub buildpackage {
 sub usage {
     print "usage: builddebiantree [options] filelist\
 -b backup public and secret key to : \"file1 file2\" if blank use defaults $pubkey $secretkey\
+-k import public key from \"file1\" if blank defaults to $pubkey\
+-K import secret key from \"file1\" if blank defaults to $secretkey\
 -e extract all from subversion -> build all -> add to distribution tree\
 -l list debian packages in repository\
 -p [\"pkg1 pkg2 ...\"] extract package list from subversion -> build -> add to distribution tree\
@@ -330,7 +338,7 @@ defaultparameter();
 # print "after:  @ARGV\n";
 
 # get command line options
-getopts('b:hS:elp:r:x:d:sf:w:R');
+getopts('k:K:b:hS:elp:r:x:d:sf:w:R');
 
 # if no options or h option print usage
 if ($opt_h or ($no_arg == 0)) {
@@ -434,10 +442,22 @@ if ($opt_b) {
 	print "backed up secret key to: " . $secretkey . "\n";
 }
 
-    
+# import public key
+# the key is added to apt so archives can be read.
+if ($opt_k) {
+	my $command = "apt-key add " . $pubkey;
+	system($command);
+}    
+
+# import the secret key for signing
+if ($opt_K) {
+	my $command = "gpg --import " . $secretkey;
+	system($command);
+}
+
 # list all packages
 if ($opt_l) {
-    $command = "svn -v list " . $repository;
+    my $command = "svn -v list " . $repository;
     system($command);
 }
 
@@ -452,12 +472,12 @@ if ($opt_e) {
 	removeworkingdir;
 
 	# export all debian packages in svn/debian to working directory
-	$command = $exportcommand . " " . $workingdir;
+	my $command = $exportcommand . " " . $workingdir;
 	system($command);
 
 	# make a list of all directories in working directory.
 	# each directory is a package. Do no descend
-	@files = glob("*");
+	my @files = glob("*");
 	foreach my $dir (@files) {
 		push (@package_list, $dir) if -d $dir;
 	}
@@ -471,7 +491,7 @@ if ($opt_p) {
     # checkout each package in list $opt_p is a space separated string
     my @package_list = split /\s+/, $opt_p;
     foreach $package (@package_list) {
-    	$command = $exportcommand . $package . " " . $workingdir . "/" . $package;
+    	my $command = $exportcommand . $package . " " . $workingdir . "/" . $package;
     	system($command);
     }
     # build the package and move it to the tree
