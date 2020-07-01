@@ -145,12 +145,20 @@ sub getpackagefield {
 	my ($archive, $field) = @_;
 
 	# get the package name from the control file
-	@command = ("dpkg-deb -f ", $archive, $field);
+	my @command = ("dpkg-deb -f ", $archive, $field);
 	$field = `@command`;
 	chomp $field;
 
-	# return control field from package
-	return $field;
+	# check if an error was returned from dpkg-deb
+	# the error would be dpkg-deb: error: some description
+	if ($field =~ /dpkg-deb: error:/) {
+		# file is not a debian package
+		print "$field\n";
+		return undef;
+	} else {
+		# return control field from package
+		return $field;
+	}
 }
 
 # movearchivetotree:
@@ -164,22 +172,22 @@ sub getpackagefield {
 sub movearchivetotree {
 	my($origarchive, $status) = @_;
 
-	# get section to use as first dir under pool
-	$section = getpackagefield($origarchive, "Section");
+	# get section, name, version and architecture to create package directory
+	my $section = getpackagefield($origarchive, "Section");
+	return unless $section;
+	my $packagename = getpackagefield($origarchive, "Package");
+	return unless $packagename;
+	my $version = getpackagefield($origarchive, "Version");
+	return unless $version;
+	my $architecture = getpackagefield($origarchive, "Architecture");
+	return unless $architecture;
 
-	# get package name
-	$packagename = getpackagefield($origarchive, "Package");
-	$version = getpackagefield($origarchive, "Version");
-	$architecture = getpackagefield($origarchive, "Architecture");
-
-#print "movearchivetotree: new file: $origarchive $status $packagename $version $architecture\n";
-		
 	# make dir under pool/firstletter of packagename/packagename
 	# get first character of string
-	$firstchar = substr($packagename, 0, 1);
+	my $firstchar = substr($packagename, 0, 1);
 
 	# make directory
-	$destination = $debianpool . "/" . $section . "/" . $firstchar . "/" . $packagename;
+	my $destination = $debianpool . "/" . $section . "/" . $firstchar . "/" . $packagename;
 	mkpath($destination) if ! -d $destination;
 
 	# compare the version of the file being inserted to the existing versions
@@ -189,13 +197,13 @@ sub movearchivetotree {
 	my $currentdir = cwd;
 	chdir $destination;
 	# make a list of all files with same package name and architecture
-	@repository_files = glob("$packagename*$architecture.deb");
+	my @repository_files = glob("$packagename*$architecture.deb");
 
 	# There may be multiple files with different versions in the repository
 	# if there are two or more files then check that the file being inserted
 	# has a version greater than the maximum version
 	# set maximum version
-	$max_version = 0;
+	my $max_version = 0;
 
 	# find the maximum version
 	foreach $file_in_repository (@repository_files) {
@@ -244,16 +252,12 @@ sub movearchivetotree {
 # the package will be renamed to standard form by movetoarchivetree
 sub add_archive {
 	# get current selection if it is a file
-#	$fullfilename = $File::Find::name;
 	my $filename = $_;
-#        $currentworkingdir = $File::Find::dir;
-#print "add_archive: filename = $filename\n";
         
 	# for each .deb file, not directory, process it but not in linux-source
 	if( -f $filename && ($filename !~ /linux-source/)) {
 		# move archive to debian dist tree and create dirs
 		if ($filename =~ /\.deb$/) {
-#print "add_archive: movearchivetotree ($filename, debpackage)\n";
 			print "\n";
 			print "--------------------------------------------------------------------------------\n";
 			movearchivetotree($filename, "debpackage");
@@ -522,11 +526,7 @@ if ($opt_r) {
 
 # add one specific file to the archive
 if ($opt_f) {
-	$fileAdd = $opt_f;
-	die "$fileAdd is not .deb file or could not be opened\n" if (! (($fileAdd =~ /\.deb/) and (open FHANDLE, "< $fileAdd")));
-	close FHANDLE;
-	
-	movearchivetotree($fileAdd, "debpackage");			
+	movearchivetotree($opt_f, "debpackage");			
 }
 
 # scan pool and make Packages file
