@@ -10,37 +10,15 @@ use Getopt::Std;
 use Cwd;
 use File::Glob;
 
-# This sub inserts argument arg at position index in ARGV list.
-# the elements of ARGV from and including the index are shifted one position to the right.
-# the list is increased by one.
-# the shift starts from the right hand side and moves to the left
-# so the values of the shifted elements are retained.
-# the call: insertstring(index, argument)
-# ARGV is altered. Nothing is returned
-# index and argument to insert are sent as parameters
-sub insertstring {
-	my ($index, $arg) = @_;
-
-	# max index
-	my $maxindex = $#ARGV;
-	# move elements one position to right, starting with the last element
-	for ( my $i = $maxindex; $i >= $index; $i--) {
-		my $newi = $i + 1;
-		$ARGV[$newi] = $ARGV[$i];
-	}
-	# insert default string at index
-	$ARGV[$index] = $arg;
-}
-
 # this sub operates on the list @ARGV
 # all the switches in the defparam hash are checked to see if they have arguments.
-# if they do not have arguments, the default arguments are inserted into ARGV
+# if they do not have arguments, the default arguments are inserted into ARGV after the switch
 # so that getopts will not fail.
 # no parameters are passed and none are returned.
 
 sub defaultparameter {
 
-	# hash supplying arguments to switches
+	# hash supplying default arguments to switches
 	my %defparam = ( -b => $pubkey . " " . $secretkey,
 			  -k => $pubkey,
 			  -K => $secretkey);
@@ -61,12 +39,12 @@ sub defaultparameter {
 						# -* is followed by a switch and is not the last switch
 						# insert the 2 default filenames as a string at index $i+1
 						$index = $i + 1;
-						insertstring($index, $defparam{$switch});
+						splice @ARGV, $index, 0, $defparam{$switch};
 					}
 				} else {
 					# -* is the last index then the default parameters for -b must be appended
 					$index = $i + 1;
-					insertstring($index, $defparam{$switch}); 
+					splice @ARGV, $index, 0, $defparam{$switch}; 
 				}
 			}
 			# increment index counter
