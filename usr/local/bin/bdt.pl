@@ -10,6 +10,33 @@ use Getopt::Std;
 use Cwd;
 use File::Glob;
 
+# sub to get the maximum release number for a package from subversion
+# the call getrelease( package_name )
+# returns the latest version no, or undef if not found
+sub getmaxrelease {
+	my $package = shift;
+
+	# get all release numbers.
+	my @list = `svn list file:///mnt/svn/debian/$package/release/ 2>/tmp/svnerror.log`;
+
+	# check for error
+	$errorlog = `cat /tmp/svnerror.log`;
+	if (grep /not found/i, $errorlog) {
+		return undef;
+	}
+	# remove new line as well as trailing slash
+	# the versions are returned as 1.3/ etc
+	chomp(@list);
+	chop (@list);
+
+	my $max = 0;
+	# find the maximum version
+	foreach my $ver (@list) {
+		$max = $ver if $max < $ver;
+	}
+	return $max;
+}
+
 # this sub operates on the list @ARGV
 # all the switches in the defparam hash are checked to see if they have arguments.
 # if they do not have arguments, the default arguments are inserted into ARGV after the switch
@@ -286,7 +313,6 @@ sub usage {
 -b backup public and secret key to : \"file1 file2\" if blank use defaults $pubkey $secretkey\
 -k import public key from \"file1\" if blank defaults to $pubkey\
 -K import secret key from \"file1\" if blank defaults to $secretkey\
--e extract all from subversion -> build all -> add to distribution tree\
 -l list debian packages in repository\
 -p [\"pkg1 pkg2 ...\"] extract package list from subversion -> build -> add to distribution tree\
 -r [\"dir1 dir2 ...\"] recurse directory list containing full paths, build -> add to repository\
@@ -295,12 +321,14 @@ sub usage {
 -S full path of subversion repository default: $subversion\
 -f full path filename to be added\
 -w set working directory: $workingdir\
+-V print version and exit\
 -R reset back to defaults and exit\n";
-    exit();
+    exit(0);
 
 }
 # main entry point
 # default values
+$version = 2.3;
 $configFile = "/root/.bdt.rc";
 $dist = "home";
 @all_arch = ("amd64", "i386", "armhf");
@@ -324,8 +352,8 @@ defaultparameter();
 # print "after:  @ARGV\n";
 
 # get command line options
-our ($opt_s, $opt_h, $opt_e, $opt_l, $opt_R, $opt_k, $opt_K);
-getopts('k:K:b:hS:elp:r:x:d:sf:w:R');
+our ($opt_V, $opt_s, $opt_h, $opt_e, $opt_l, $opt_R, $opt_k, $opt_K);
+getopts('Vt:k:K:b:hS:lp:r:x:d:sf:w:R');
 
 # if no options or h option print usage
 if ($opt_h or ($no_arg == 0)) {
@@ -343,6 +371,11 @@ if ($opt_h or ($no_arg == 0)) {
 #	print "item: $item\n";
 # }
 #############################################
+# print version and exit
+if ($opt_V) {
+	print "version $version\n";
+	exit 0;
+}
 
 # reset by deleting config file and exit
 if ($opt_R) {
@@ -391,9 +424,6 @@ if ($opt_w) {
 writeconfig if $config_changed;
 
 
-
-# set up commands
-$exportcommand = "svn --force -q export " . $repository;
 
 #make directories if they do not exist
 mkpath($debianroot) if ! -d $debianroot;
@@ -448,42 +478,48 @@ if ($opt_l) {
     system($command);
 }
 
-# checkout all debian packages from svn/debian, build and place in tree
-if ($opt_e) {
-	# local variable
-	my @package_list;
-	# work in the working directory
-	my $currentdir = cwd;
-	chdir $workingdir;
+# set up commands
+$exportcommand = "svn --force -q export " . $repository;
 
-	# empty the working directory
-	removeworkingdir;
-
-	# export all debian packages in svn/debian to working directory
-	my $command = $exportcommand . " " . $workingdir;
-	system($command);
-
-	# make a list of all directories in working directory.
-	# each directory is a package. Do no descend
-	my @files = glob("*");
-	foreach my $dir (@files) {
-		push (@package_list, $dir) if -d $dir;
+# export the trunk, build the package and move to the debian tree
+if ($opt_t) {
+	# export package from trunk and build it, insert into debian repository
+    removeworkingdir;
+    # checkout each package in list $opt_t is a space separated string
+    my @package_list = split /\s+/, $opt_t;
+    foreach $package (@package_list) {
+    	my $command = $exportcommand . $package . "/trunk " . $workingdir . "/" . $package . " 1>/tmp/svn.log 2>/tmp/svnerror.log";
+    	if (system($command) == 0) {
+		print "exported " . $repository . $package . "/trunk\n";
+	} else {
+		my $error = `cat /tmp/svnerror.log`;
+		print "$error\n";
 	}
-	# build the packages
-	buildpackage($workingdir, @package_list);
-
-	# restore original directory
-	chdir $currentdir;
+    }
+    # build the package and move it to the tree
+    buildpackage($workingdir, @package_list);
+    removeworkingdir;
 }
-
+# export the latest release, build the package and move to the debian tree
 if ($opt_p) {
 	# empty working dir incase
     removeworkingdir;
     # checkout each package in list $opt_p is a space separated string
     my @package_list = split /\s+/, $opt_p;
     foreach $package (@package_list) {
-    	my $command = $exportcommand . $package . " " . $workingdir . "/" . $package;
-    	system($command);
+	# get latest release no
+	my $release = getmaxrelease($package);
+	if ($release) {
+	    	my $command = $exportcommand . $package . "/release/" . $release . " " . $workingdir . "/" . $package . " 1>/tmp/svn.log 2>/tmp/svnerror.log";
+	    	if (system($command) == 0) {
+			print "exported " . $repository . $package . "/release/" . $release . "\n";
+		} else {
+			my $error = `cat /tmp/svnerror.log`;
+			print "$error\n";
+		}
+	} else {
+		print "There is no release for package $package\n";
+	} # end if release
     }
     # build the package and move it to the tree
     buildpackage($workingdir, @package_list);
