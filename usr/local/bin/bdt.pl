@@ -314,7 +314,8 @@ sub usage {
 -k import public key from \"file1\" if blank defaults to $pubkey\
 -K import secret key from \"file1\" if blank defaults to $secretkey\
 -l list debian packages in repository\
--p [\"pkg1 pkg2 ...\"] extract package list from subversion -> build -> add to distribution tree\
+-p [\"pkg1 pkg2 ...\"] extract package latest release from subversion -> build -> add to distribution tree\
+-t [\"pkg1 pkg2 ...\"] extract package from trunk in subversion, build->add to archive tree\
 -r [\"dir1 dir2 ...\"] recurse directory list containing full paths, build -> add to repository\
 -x destination path of archive default: $debianroot\
 -s scan packages to make Packages\
@@ -328,7 +329,7 @@ sub usage {
 }
 # main entry point
 # default values
-$version = 2.3;
+$version = 2.4;
 $configFile = "/root/.bdt.rc";
 $dist = "home";
 @all_arch = ("amd64", "i386", "armhf");
