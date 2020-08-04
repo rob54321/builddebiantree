@@ -221,7 +221,8 @@ sub movearchivetotree {
 	
 	# Insert file to repository if the new version > than the version in the repository
 	chdir $currentdir;
-	if ($version gt $max_version) {
+	# check if version > max version unless force option is given
+	if ($opt_F or ($version gt $max_version)) {
 		# delete all previous versions of files in the repository with the same packagename,
 		# architecture in the destination
 		system("rm -f " . $destination . "/" . $packagename . "*" . $architecture . ".deb");
@@ -317,6 +318,7 @@ sub usage {
 -p [\"pkg1 pkg2 ...\"] extract package latest release from subversion -> build -> add to distribution tree\
 -t [\"pkg1 pkg2 ...\"] extract package from trunk in subversion, build->add to archive tree\
 -r [\"dir1 dir2 ...\"] recurse directory list containing full paths, build -> add to repository\
+-F force package to be inserted in tree regardless of version\
 -x destination path of archive default: $debianroot\
 -s scan packages to make Packages\
 -S full path of subversion repository default: $subversion\
@@ -329,7 +331,7 @@ sub usage {
 }
 # main entry point
 # default values
-$version = 2.4;
+$version = 2.41;
 $configFile = "/root/.bdt.rc";
 $dist = "home";
 @all_arch = ("amd64", "i386", "armhf");
@@ -353,8 +355,8 @@ defaultparameter();
 # print "after:  @ARGV\n";
 
 # get command line options
-our ($opt_V, $opt_s, $opt_h, $opt_e, $opt_l, $opt_R, $opt_k, $opt_K);
-getopts('Vt:k:K:b:hS:lp:r:x:d:sf:w:R');
+our ($opt_F, $opt_V, $opt_s, $opt_h, $opt_e, $opt_l, $opt_R, $opt_k, $opt_K);
+getopts('FVt:k:K:b:hS:lp:r:x:d:sf:w:R');
 
 # if no options or h option print usage
 if ($opt_h or ($no_arg == 0)) {
