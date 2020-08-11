@@ -32,7 +32,7 @@ sub getmaxrelease {
 	my $max = 0;
 	# find the maximum version
 	foreach my $ver (@list) {
-		$max = $ver if $max < $ver;
+		$max = $ver if $max lt $ver;
 	}
 	return $max;
 }
@@ -331,10 +331,10 @@ sub usage {
 }
 # main entry point
 # default values
-$version = 2.41;
+$version = 2.42;
 $configFile = "/root/.bdt.rc";
 $dist = "home";
-@all_arch = ("amd64", "i386", "armhf");
+@all_arch = ("amd64", "i386", "armhf", "arm64");
 $workingdir = "/mnt/hdint/tmp/debian";
 $subversion = "/mnt/svn";
 $repository = "file://" . $subversion . "/debian/";
