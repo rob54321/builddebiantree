@@ -10,6 +10,51 @@ use Getopt::Std;
 use Cwd;
 use File::Glob;
 
+# sub to get a source tarball and include it in the debian package for building
+# if it is required
+# The postinst is checked to see if it has FILE=/mnt/hdd/debhome/source/.....
+# this is done so the tarball does not have to be included in subversion
+# package name is passed as a parameter. The full directory is
+# $workingdir/$packagename
+# returns 1 if tarball included in package
+# returns 2 if there is no tarball to be included
+# returns undef if there is a tarball to be included but it cannot be found
+sub getsource {
+	my $package = shift;
+
+	# store current dir
+	my $currentdir = cwd();
+	chdir ("$workingdir/$package");
+	# check DEBIAN/postinst
+	return 2 if ! -f "DEBIAN/postinst";
+
+	# check the postinst for FILE=/mnt/hdd/debhome/source
+	# get the version first, FILE=/mnt/hdd/debhome/source/name-$VERSION.tar.bz2
+	# return 2 if no version or no FILE=
+	# return undef if file not found
+	my $fversion = `grep 'VERSION=' DEBIAN/postinst`;
+	chomp $fversion;
+	return 2 if ! $fversion;
+	$fversion =~ s/VERSION=//;
+		
+	$sourcefile = `grep -e 'FILE=["[:punct:]]/mnt/hdd/debhome/source' -e 'FILE=/mnt/hdd/debhome/source' DEBIAN/postinst`;
+	chomp $sourcefile;
+	return 2 if ! $sourcefile;
+	$sourcefile =~ s/FILE=//;		# strip FILE= from the begining
+	$sourcefile =~ s/\$VERSION/$fversion/;	# insert numeric version no
+	$sourcefile =~ s/"|\'//g; 		# strip quotes
+	print "sourcefile: $sourcefile\n";
+	# check if source file exists
+	return undef if ! -f $sourcefile;
+	
+	# copy to the source file to $workingdir/$package/tmp
+	mkdir "$workingdir/$package/tmp" if ! -d "$workingdir/$package/tmp";
+	my $copycmd = "cp -f $sourcefile $workingdir/$package/tmp/";
+	system($copycmd);
+	chdir $currentdir;
+	return 1;	
+}
+
 # sub to get the maximum release number for a package from subversion
 # the call getrelease( package_name )
 # returns the latest version no, or undef if not found
@@ -330,21 +375,24 @@ sub usage {
 
 }
 # main entry point
+our ($version, $configFile, $dist, @all_arch, $workingdir, $subversion, $repository, $debianroot, $debianpool, $pubkey, $secretkey, $sourcefile);
+
 # default values
-$version = 2.43;
+$version = 2.44;
 $configFile = "/root/.bdt.rc";
 $dist = "home";
 @all_arch = ("amd64", "i386", "armhf", "arm64");
-$workingdir = "/mnt/hdint/tmp/debian";
+$workingdir = "/tmp/debian";
 $subversion = "/mnt/svn";
 $repository = "file://" . $subversion . "/debian/";
 $debianroot = "/mnt/hdd/debhome";
 $debianpool = $debianroot . "/pool";
 $pubkey = $debianroot . "/keyFile";
 $secretkey = $debianroot . "/secretkeyFile.gpg";
+$sourcefile = "";
 
 # if no arguments given show usage
-$no_arg = @ARGV;
+my $no_arg = @ARGV;
 
 # check if -b has an argument list after it.
 # if not insert default arguments			
@@ -516,6 +564,13 @@ if ($opt_p) {
 	    	my $command = $exportcommand . $package . "/release/" . $release . " " . $workingdir . "/" . $package . " 1>/tmp/svn.log 2>/tmp/svnerror.log";
 	    	if (system($command) == 0) {
 			print "exported " . $repository . $package . "/release/" . $release . "\n";
+	    		# check if a source tarball must be included
+	    		my $rc = getsource($package);
+	    		if ($rc) {
+	    			print "$sourcefile included\n" if $rc == 1;
+	    		} else {
+	    			print "$sourcefile not found\n";
+	    		}
 		} else {
 			my $error = `cat /tmp/svnerror.log`;
 			print "$error\n";
