@@ -21,29 +21,28 @@ use File::Glob;
 # returns undef if there is a tarball to be included but it cannot be found
 sub getsource {
 	my $package = shift;
-
-	# store current dir
-	my $currentdir = cwd();
-	chdir ("$workingdir/$package");
+	my $postinst = "$workingdir/$package/DEBIAN/postinst";
+	
 	# check DEBIAN/postinst
-	return 2 if ! -f "DEBIAN/postinst";
+	return 2 if ! -f $postinst;
 
 	# check the postinst for FILE=/mnt/hdd/debhome/source
 	# get the version first, FILE=/mnt/hdd/debhome/source/name-$VERSION.tar.bz2
 	# return 2 if no version or no FILE=
 	# return undef if file not found
-	my $fversion = `grep 'VERSION=' DEBIAN/postinst`;
+	my $fversion = `grep 'VERSION=' $postinst`;
 	chomp $fversion;
 	return 2 if ! $fversion;
 	$fversion =~ s/VERSION=//;
-		
-	$sourcefile = `grep -e 'FILE=["[:punct:]]/mnt/hdd/debhome/source' -e 'FILE=/mnt/hdd/debhome/source' DEBIAN/postinst`;
+
+	# statement can be FILE="/.. FILE='/.. or FILE=/..		
+	$sourcefile = `grep -e 'FILE=["[:punct:]]/mnt/hdd/debhome/source' -e 'FILE=/mnt/hdd/debhome/source' $postinst`;
 	chomp $sourcefile;
 	return 2 if ! $sourcefile;
 	$sourcefile =~ s/FILE=//;		# strip FILE= from the begining
 	$sourcefile =~ s/\$VERSION/$fversion/;	# insert numeric version no
 	$sourcefile =~ s/"|\'//g; 		# strip quotes
-	print "sourcefile: $sourcefile\n";
+	#print "sourcefile: $sourcefile\n";
 	# check if source file exists
 	return undef if ! -f $sourcefile;
 	
@@ -51,7 +50,6 @@ sub getsource {
 	mkdir "$workingdir/$package/tmp" if ! -d "$workingdir/$package/tmp";
 	my $copycmd = "cp -f $sourcefile $workingdir/$package/tmp/";
 	system($copycmd);
-	chdir $currentdir;
 	return 1;	
 }
 
@@ -306,7 +304,7 @@ sub add_archive {
 	my $filename = $_;
         
 	# for each .deb file, not directory, process it but not in linux-source
-	if( -f $filename && ($filename !~ /linux-source/)) {
+	if( -f $filename) {
 		# move archive to debian dist tree and create dirs
 		if ($filename =~ /\.deb$/) {
 			print "\n";
@@ -325,12 +323,20 @@ sub buildpackage {
 	my($workdir, @package_list) = @_;
 
 	# change to working directory
-	my $currentdir = cwd;
 	chdir $workdir;
 
 	# for each package, build the package
 	foreach $package (@package_list) {
-
+		# check if a package requires a source tarball
+		my $gsrc = getsource($package);
+		if ($gsrc) {
+			print "$sourcefile included\n" if $gsrc == 1;
+		} else {
+			# gsrc undefined, source not found
+			# skip building package
+			print "$sourcefile not found: skiping building $package\n";
+			next;
+		}
 		# build the package
 		print "\n";
 		print "--------------------------------------------------------------------------------\n";
@@ -350,8 +356,6 @@ sub buildpackage {
 
 	}
 
-	# restore original directory
-	chdir $currentdir;
 }
 
 sub usage {
@@ -552,6 +556,7 @@ if ($opt_t) {
     removeworkingdir;
 }
 # export the latest release, build the package and move to the debian tree
+# also check if a source tarball is required and insert it into the debian package
 if ($opt_p) {
 	# empty working dir incase
     removeworkingdir;
@@ -564,13 +569,6 @@ if ($opt_p) {
 	    	my $command = $exportcommand . $package . "/release/" . $release . " " . $workingdir . "/" . $package . " 1>/tmp/svn.log 2>/tmp/svnerror.log";
 	    	if (system($command) == 0) {
 			print "exported " . $repository . $package . "/release/" . $release . "\n";
-	    		# check if a source tarball must be included
-	    		my $rc = getsource($package);
-	    		if ($rc) {
-	    			print "$sourcefile included\n" if $rc == 1;
-	    		} else {
-	    			print "$sourcefile not found\n";
-	    		}
 		} else {
 			my $error = `cat /tmp/svnerror.log`;
 			print "$error\n";
@@ -583,7 +581,7 @@ if ($opt_p) {
     buildpackage($workingdir, @package_list);
     removeworkingdir;
 }
-# process a dir recursively and copy all debian i386 archives to tree
+# process a dir recursively and copy all debian archives to tree
 # search each dir for DEBIAN/control. If found build package.
 # the opt_r can be a space separated directory list
 if ($opt_r) {
@@ -632,4 +630,3 @@ if ($opt_s) {
 	# restore original directory
 	chdir $currentdir;
 }
-
