@@ -145,24 +145,24 @@ sub writeconfig {
 # if the config file exists, defaults will be read from the file
 # if there is no config file the original defaults will be used.
 sub getconfig {
-    # check if file exists
-    if ( -e $configFile) {
-        # display file
-        open INFILE,"<$configFile";
-        
-        # file format:
-        # var_name=value
-        # read file into hash and set values
-        while (<INFILE>) {
-            $workingdir = (split " ", $_)[1] if /workingdir/;
-            $subversion = (split " ", $_)[1] if /subversion/;
-            $debianroot = (split " ", $_)[1] if /debianroot/;
-        }
+	# check if file exists
+    	if ( -e $configFile) {
+	        # display file
+	        open INFILE,"<$configFile";
+	        
+	        # file format:
+	        # var_name=value
+	        # read file into hash and set values
+	        while (<INFILE>) {
+			$workingdir = (split " ", $_)[1] if /workingdir/;
+			$subversion = (split " ", $_)[1] if /subversion/;
+			$debianroot = (split " ", $_)[1] if /debianroot/;
+		}
         
         # print a message if any defaults were loaded
         print "loaded config file\n";
         close INFILE;
-    }
+	}
 }
 
 # sub to make Packages.gz and Packages.bz2 from the packages file
@@ -258,8 +258,6 @@ sub movearchivetotree {
 		# compare versions
 		$version_in_repository = getpackagefield($file_in_repository, "Version");
 		$max_version = $version_in_repository if $max_version lt $version_in_repository;
-#print "move: max_version = $max_version\n";
-
 	}
 	
 	# Insert file to repository if the new version > than the version in the repository
@@ -329,18 +327,18 @@ sub buildpackage {
 	foreach $package (@package_list) {
 		# check if a package requires a source tarball
 		my $gsrc = getsource($package);
+		print "\n";
+		print "--------------------------------------------------------------------------------\n";
+		print "$package: building\n";
 		if ($gsrc) {
-			print "$sourcefile included\n" if $gsrc == 1;
+			print "$package: $sourcefile included\n" if $gsrc == 1;
 		} else {
 			# gsrc undefined, source not found
 			# skip building package
-			print "$sourcefile not found: skiping building $package\n";
+			print "$package: $sourcefile not found: skiping\n";
 			next;
 		}
 		# build the package
-		print "\n";
-		print "--------------------------------------------------------------------------------\n";
-		print "building package $package\n";
 		my $rc = system("dpkg-deb -b " . $package . " >/dev/null");
 		# check if build was successful
 		if ($rc == 0) {
@@ -434,9 +432,9 @@ if ($opt_V) {
 
 # reset by deleting config file and exit
 if ($opt_R) {
-    unlink($configFile);
-    print "deleted config file\n";
-    exit 0;
+	unlink($configFile);
+	print "deleted config file\n";
+	exit 0;
 }
 
 # get config file now, so that command line options
@@ -539,30 +537,34 @@ $exportcommand = "svn --force -q export " . $repository;
 # export the trunk, build the package and move to the debian tree
 if ($opt_t) {
 	# export package from trunk and build it, insert into debian repository
-    removeworkingdir;
-    # checkout each package in list $opt_t is a space separated string
-    my @package_list = split /\s+/, $opt_t;
-    foreach $package (@package_list) {
-    	my $command = $exportcommand . $package . "/trunk " . $workingdir . "/" . $package . " 1>/tmp/svn.log 2>/tmp/svnerror.log";
-    	if (system($command) == 0) {
-		print "exported " . $repository . $package . "/trunk\n";
-	} else {
-		my $error = `cat /tmp/svnerror.log`;
-		print "$error\n";
+    	removeworkingdir;
+	# checkout each package in list $opt_t is a space separated string
+	print "\n";
+	print "--------------------------------------------------------------------------------\n";
+	my @package_list = split /\s+/, $opt_t;
+	foreach $package (@package_list) {
+    		my $command = $exportcommand . $package . "/trunk " . $workingdir . "/" . $package . " 1>/tmp/svn.log 2>/tmp/svnerror.log";
+	    	if (system($command) == 0) {
+			print "exported " . $repository . $package . "/trunk\n";
+		} else {
+			my $error = `cat /tmp/svnerror.log`;
+			print "$error\n";
+		}
 	}
-    }
-    # build the package and move it to the tree
-    buildpackage($workingdir, @package_list);
-    removeworkingdir;
+	# build the package and move it to the tree
+	buildpackage($workingdir, @package_list);
+	removeworkingdir;
 }
 # export the latest release, build the package and move to the debian tree
 # also check if a source tarball is required and insert it into the debian package
 if ($opt_p) {
 	# empty working dir incase
-    removeworkingdir;
-    # checkout each package in list $opt_p is a space separated string
-    my @package_list = split /\s+/, $opt_p;
-    foreach $package (@package_list) {
+	removeworkingdir;
+	# checkout each package in list $opt_p is a space separated string
+	print "\n";
+	print "--------------------------------------------------------------------------------\n";
+	my @package_list = split /\s+/, $opt_p;
+	foreach $package (@package_list) {
 	# get latest release no
 	my $release = getmaxrelease($package);
 	if ($release) {
@@ -576,10 +578,10 @@ if ($opt_p) {
 	} else {
 		print "There is no release for package $package\n";
 	} # end if release
-    }
-    # build the package and move it to the tree
-    buildpackage($workingdir, @package_list);
-    removeworkingdir;
+	}
+	# build the package and move it to the tree
+	buildpackage($workingdir, @package_list);
+	removeworkingdir;
 }
 # process a dir recursively and copy all debian archives to tree
 # search each dir for DEBIAN/control. If found build package.
