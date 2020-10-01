@@ -133,7 +133,8 @@ sub writeconfig {
     $config{"workingdir"} = $workingdir;
     $config{"subversion"} = $subversion;
     $config{"debianroot"} = $debianroot;
-    
+    $config{"gitrepopath"}    = $gitrepopath;
+        
     open OUTFILE, ">$configFile";
     foreach $key (keys %config) {
         print OUTFILE "$key $config{$key}\n";
@@ -146,25 +147,24 @@ sub writeconfig {
 # if there is no config file the original defaults will be used.
 sub getconfig {
 	# check if file exists
-    	if ( -e $configFile) {
-	        # display file
-	        open INFILE,"<$configFile";
-	        
-	        # file format:
-	        # var_name=value
-	        # read file into hash and set values
-	        while (<INFILE>) {
+    	if (open INFILE,"<$configFile") {
+			        
+		# file format:
+		# var_name=value
+		# read file into hash and set values
+		while (<INFILE>) {
 			$workingdir = (split " ", $_)[1] if /workingdir/;
 			$subversion = (split " ", $_)[1] if /subversion/;
 			$debianroot = (split " ", $_)[1] if /debianroot/;
-		}
-        
-        # print a message if any defaults were loaded
-        print "loaded config file\n";
-        close INFILE;
+			$gitrepopath = (split " ", $_)[1] if /gitrepopath/;
+			}
+	
+		# print a message if any defaults were loaded
+		print "loaded config file\n";
+		close INFILE;
 	}
 }
-
+	
 # sub to make Packages.gz and Packages.bz2 from the packages file
 # architecture must be passed as a parameter
 sub makeCompressedPackages {
@@ -370,7 +370,7 @@ sub usage {
 -x destination path of archive default: $debianroot\
 -s scan packages to make Packages\
 -S full path of subversion repository default: $subversion\
--G full path of git repo, default: $gitrepo\
+-G full path of git repo, default: $gitrepopath\
 -f full path filename to be added\
 -w set working directory: $workingdir\
 -V print version and exit\
@@ -379,7 +379,7 @@ sub usage {
 
 }
 # main entry point
-our ($version, $configFile, $dist, @all_arch, $workingdir, $subversion, $gitrepo, $repository, $debianroot, $debianpool, $pubkey, $secretkey, $sourcefile);
+our ($version, $configFile, $dist, @all_arch, $workingdir, $subversion, $gitrepopath, $repository, $debianroot, $debianpool, $pubkey, $secretkey, $sourcefile);
 
 # default values
 $version = 2.45;
@@ -388,7 +388,7 @@ $dist = "home";
 @all_arch = ("amd64", "i386", "armhf", "arm64");
 $workingdir = "/tmp/debian";
 $subversion = "/mnt/svn";
-$gitrepo = "file:///home/robert/repo.git";
+$gitrepopath = "file:///home/robert";
 $repository = "file://" . $subversion . "/debian/";
 $debianroot = "/mnt/hdd/debhome";
 $debianpool = $debianroot . "/pool";
@@ -410,13 +410,6 @@ defaultparameter();
 # get command line options
 our ($opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_h, $opt_e, $opt_l, $opt_R, $opt_k, $opt_K);
 getopts('FVt:k:K:b:hS:lp:r:x:d:sf:w:Rg:G:');
-
-# if no options or h option print usage
-if ($opt_h or ($no_arg == 0)) {
-	usage;
-	# exit
-	exit 0;
-}
 
 ################# testing ###################
 # print "after getopts\n";
@@ -443,6 +436,12 @@ if ($opt_R) {
 # get config file now, so that command line options
 # can override them if necessary
 getconfig;
+
+# set the git repository if changed
+if ($opt_G) {
+	$gitrepopath = $opt_G;
+	$config_changed = "true";
+}
 
 # set subversion respository path
 if ($opt_S) {
@@ -636,11 +635,6 @@ if ($opt_s) {
 	chdir $currentdir;
 }
 
-# set the git repository if changed
-if ($opt_G) {
-	$gitrepo = $opt_G;
-}
-
 # export a package from git, build it and insert into the repository
 # export to depth 1 and delete .git directory
 if ($opt_g) {
@@ -650,8 +644,13 @@ if ($opt_g) {
 	print "--------------------------------------------------------------------------------\n";
 	my @package_list = split /\s+/, $opt_g;
 	my $gitclone = "git clone --single-branch --depth 1 --no-tags ";
+
+	# add a final / to gitrepopath if one does not exist
+	$gitrepopath = $gitrepopath . "/" unless $gitrepopath =~ /\/$/;
+	
 	foreach $package (@package_list) {
-    		my $command = $gitclone . "-b " . $package . " " . $gitrepo . " " . $workingdir . "/" . $package . " 1>/tmp/git.log 2>/tmp/giterror.log";
+		my $projectrepo = $gitrepopath . "$opt_g" . "\.git";
+    		my $command = $gitclone . "-b " . $package . " " . $projectrepo . " " . $workingdir . "/" . $package . " 1>/tmp/git.log 2>/tmp/giterror.log";
 
 	    	if (system($command) == 0) {
 			print "cloned " . $repository . $package . "/trunk\n";
@@ -664,5 +663,11 @@ if ($opt_g) {
 	}
 	# build the package and move it to the tree
 	buildpackage($workingdir, @package_list);
-	removeworkingdir;
+#	removeworkingdir;
+}
+# if no options or h option print usage
+if ($opt_h or ($no_arg == 0)) {
+	usage;
+	# exit
+	exit 0;
 }
