@@ -1,11 +1,11 @@
 Package: builddebiantree
-Version: 2.44
+Version: 2.45
 Architecture: all
 Maintainer: Robert Key robkey@mighty.co.za
 Depends: perl, dpkg, bzip2, tar, dpkg-dev, apt-utils, subversion | svn-src, gpg
 Section: myown
 Priority: optional
-Description: This perl script builds a debian tree from deb packages, source in subversion or git.
-	This script extracts source from svn, builds debian packages,
-	 makes the correct directory tree for a debian distribution and places all deb files there.
-	 The programme also recurses directories for debian packages and places them in the tree. The package also includes signmydebian which must be executed after updateing mydebian.
+Description: This perl script builds a debian tree from source in svn or loads deb files from directories.
+	This script extracts source from svn, or git and builds debian packages,
+	 it also creates a complete Debian tree ,inserts the packages and signs the release files. Debian packages
+	 can also be recursively found and inserted into the tree.

@@ -364,11 +364,13 @@ sub usage {
 -l list debian packages in repository\
 -p [\"pkg1 pkg2 ...\"] extract package latest release from subversion -> build -> add to distribution tree\
 -t [\"pkg1 pkg2 ...\"] extract package from trunk in subversion, build->add to archive tree\
--r [\"dir1 dir2 ...\"] recurse directory list containing full paths, build -> add to repository\
+-g [\"pkg1 pkg2 ...\"] extract package from git, build->add to tree\
+-r [\"dir1 dir2 ...\"] recurse directory for deb packages list containing full paths, build -> add to repository\
 -F force package to be inserted in tree regardless of version\
 -x destination path of archive default: $debianroot\
 -s scan packages to make Packages\
 -S full path of subversion repository default: $subversion\
+-G full path of git repo, default: $gitrepo\
 -f full path filename to be added\
 -w set working directory: $workingdir\
 -V print version and exit\
@@ -377,15 +379,16 @@ sub usage {
 
 }
 # main entry point
-our ($version, $configFile, $dist, @all_arch, $workingdir, $subversion, $repository, $debianroot, $debianpool, $pubkey, $secretkey, $sourcefile);
+our ($version, $configFile, $dist, @all_arch, $workingdir, $subversion, $gitrepo, $repository, $debianroot, $debianpool, $pubkey, $secretkey, $sourcefile);
 
 # default values
-$version = 2.44;
+$version = 2.45;
 $configFile = "/root/.bdt.rc";
 $dist = "home";
 @all_arch = ("amd64", "i386", "armhf", "arm64");
 $workingdir = "/tmp/debian";
 $subversion = "/mnt/svn";
+$gitrepo = "file:///home/robert/repo.git";
 $repository = "file://" . $subversion . "/debian/";
 $debianroot = "/mnt/hdd/debhome";
 $debianpool = $debianroot . "/pool";
@@ -405,8 +408,8 @@ defaultparameter();
 # print "after:  @ARGV\n";
 
 # get command line options
-our ($opt_F, $opt_V, $opt_s, $opt_h, $opt_e, $opt_l, $opt_R, $opt_k, $opt_K);
-getopts('FVt:k:K:b:hS:lp:r:x:d:sf:w:R');
+our ($opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_h, $opt_e, $opt_l, $opt_R, $opt_k, $opt_K);
+getopts('FVt:k:K:b:hS:lp:r:x:d:sf:w:Rg:G:');
 
 # if no options or h option print usage
 if ($opt_h or ($no_arg == 0)) {
@@ -631,4 +634,35 @@ if ($opt_s) {
 
 	# restore original directory
 	chdir $currentdir;
+}
+
+# set the git repository if changed
+if ($opt_G) {
+	$gitrepo = $opt_G;
+}
+
+# export a package from git, build it and insert into the repository
+# export to depth 1 and delete .git directory
+if ($opt_g) {
+    	removeworkingdir;
+	# checkout each package in list $opt_t is a space separated string
+	print "\n";
+	print "--------------------------------------------------------------------------------\n";
+	my @package_list = split /\s+/, $opt_g;
+	my $gitclone = "git clone --single-branch --depth 1 --no-tags ";
+	foreach $package (@package_list) {
+    		my $command = $gitclone . "-b " . $package . " " . $gitrepo . " " . $workingdir . "/" . $package . " 1>/tmp/git.log 2>/tmp/giterror.log";
+
+	    	if (system($command) == 0) {
+			print "cloned " . $repository . $package . "/trunk\n";
+	    		# remove .git directory
+    			system("rm -rf " . $workingdir . "/" . $package . "/.git");
+		} else {
+			my $error = `cat /tmp/giterror.log`;
+			print "$error\n";
+		}
+	}
+	# build the package and move it to the tree
+	buildpackage($workingdir, @package_list);
+	removeworkingdir;
 }
