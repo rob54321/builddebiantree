@@ -88,6 +88,12 @@ sub getmaxrelease {
 
 sub defaultparameter {
 
+	# the pubkey secretkey files have defaults:
+	#    debianroot/pubkey and debianroot/secretkey
+	# the debian root may have changed in the comman line switches with the -x option
+	# command line: bdt.pl -x newdir ...
+	# then the defaults for pubkey and secretkey must change as well
+	
 	# hash supplying default arguments to switches
 	my %defparam = ( -b => $pubkey . " " . $secretkey,
 			  -k => $pubkey,
@@ -389,9 +395,7 @@ $dist = "home";
 $workingdir = "/tmp/debian";
 $subversion = "/mnt/svn";
 $gitrepopath = "file:///home/robert";
-$repository = "file://" . $subversion . "/debian/";
 $debianroot = "/mnt/hdd/debhome";
-$debianpool = $debianroot . "/pool";
 $pubkey = $debianroot . "/keyFile";
 $secretkey = $debianroot . "/secretkeyFile.gpg";
 $sourcefile = "";
@@ -420,6 +424,19 @@ getopts('FVt:k:K:b:hS:lp:r:x:d:sf:w:Rg:G:');
 #	print "item: $item\n";
 # }
 #############################################
+
+# set up destinaton path of repository if given on command line
+if ($opt_x) {
+
+    	$debianroot = $opt_x;
+        # add change to hash for saving
+        $config{"debianroot"} = $opt_x;
+        
+        # set flag to say a change has been made
+        $config_changed = "true";
+}
+
+
 # print version and exit
 if ($opt_V) {
 	print "version $version\n";
@@ -454,16 +471,10 @@ if ($opt_S) {
         $config_changed = "true";
 }
 
-# set up destinaton path of repository if given on command line
-if ($opt_x) {
-
-    	$debianroot = $opt_x;
-        # add change to hash for saving
-        $config{"debianroot"} = $opt_x;
-        
-        # set flag to say a change has been made
-        $config_changed = "true";
-}
+# set variables after config is fetched
+# so that command line options can take precedence over config file
+$repository = "file://" . $subversion . "/debian/";
+$debianpool = $debianroot . "/pool";
 
 # set working directory if changed
 if ($opt_w) {
@@ -655,7 +666,7 @@ if ($opt_g) {
 	    	if (system($command) == 0) {
 			print "cloned " . $repository . $package . "/trunk\n";
 	    		# remove .git directory
-    			system("rm -rf " . $workingdir . "/" . $package . "/.git");
+#    			system("rm -rf " . $workingdir . "/" . $package . "/.git");
 		} else {
 			my $error = `cat /tmp/giterror.log`;
 			print "$error\n";
