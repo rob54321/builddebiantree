@@ -35,7 +35,8 @@ sub getsource {
 	return 2 if ! $fversion;
 	$fversion =~ s/VERSION=//;
 
-	# statement can be FILE="/.. FILE='/.. or FILE=/..		
+	# statement can be FILE="/.. FILE='/.. or FILE=/..
+	# needs to be fixed if debianroot changes, source directory will change
 	$sourcefile = `grep -e 'FILE=["[:punct:]]/mnt/hdd/debhome/source' -e 'FILE=/mnt/hdd/debhome/source' $postinst`;
 	chomp $sourcefile;
 	return 2 if ! $sourcefile;
@@ -93,18 +94,33 @@ sub defaultparameter {
 	# the debian root may have changed in the comman line switches with the -x option
 	# command line: bdt.pl -x newdir ...
 	# then the defaults for pubkey and secretkey must change as well
-	
+	# find -x directory in @ARGV if it exists
+	# the following parameter will be debianroot
+	# if the last command line parameter is -x , it has no effect
+	# that's why $i < $#ARGV
+	for (my $i = 0; $i < $#ARGV; $i++) {
+		if ($ARGV[$i] eq "-x") {
+			# reset the pubkey and secret key locations
+			$debianroot = $ARGV[$i+1];
+			# check and remove final / from debianroot
+			$debianroot =~ s/\/$//;
+			$pubkeyfile = $debianroot . "/publickeyFile.gpg";
+			$secretkeyfile = $debianroot . "/secretkeyFile.gpg";
+			last;
+		}
+	}
+			
 	# hash supplying default arguments to switches
-	my %defparam = ( -b => $pubkey . " " . $secretkey,
-			  -k => $pubkey,
-			  -K => $secretkey);
+	my %defparam = ( -b => $pubkeyfile . " " . $secretkeyfile,
+			  -k => $pubkeyfile,
+			  -K => $secretkeyfile);
 
 	# for each switch in the defparam hash find it's index and insert default arguments if necessary
 	foreach my $switch (keys(%defparam)) {
 		# find index of position of -*
 		my $i = 0;
 		foreach my $param (@ARGV) {
-			# check for a -b and that it is not the last parameter
+			# check for a -b, -K or -k and that it is not the last parameter
 			if ($param eq $switch) {
 				if ($i < $#ARGV) {
 					# -* has been found at $ARGV[$i] and it is not the last parameter
@@ -364,9 +380,9 @@ sub buildpackage {
 
 sub usage {
     print "usage: builddebiantree [options] filelist\
--b backup public and secret key to : \"file1 file2\" if blank use defaults $pubkey $secretkey\
--k import public key from \"file1\" if blank defaults to $pubkey\
--K import secret key from \"file1\" if blank defaults to $secretkey\
+-b backup public and secret key to : \"pubkeyfile secretkeyfile\" if blank use defaults $pubkeyfile $secretkeyfile\
+-k import public key from \"pubkeyfile\" if blank defaults to $pubkeyfile\
+-K import secret key from \"secretkeyfile\" if blank defaults to $secretkeyfile\
 -l list debian packages in repository\
 -p [\"pkg1 pkg2 ...\"] extract package latest release from subversion -> build -> add to distribution tree\
 -t [\"pkg1 pkg2 ...\"] extract package from trunk in subversion, build->add to archive tree\
@@ -385,7 +401,7 @@ sub usage {
 
 }
 # main entry point
-our ($version, $configFile, $dist, @all_arch, $workingdir, $subversion, $gitrepopath, $repository, $debianroot, $debianpool, $pubkey, $secretkey, $sourcefile);
+our ($version, $configFile, $dist, @all_arch, $workingdir, $subversion, $gitrepopath, $repository, $debianroot, $debianpool, $pubkeyfile, $secretkeyfile, $sourcefile);
 
 # default values
 $version = 2.45;
@@ -394,11 +410,15 @@ $dist = "home";
 @all_arch = ("amd64", "i386", "armhf", "arm64");
 $workingdir = "/tmp/debian";
 $subversion = "/mnt/svn";
-$gitrepopath = "file:///home/robert";
+$gitrepopath = "https://github.com/rob54321";
 $debianroot = "/mnt/hdd/debhome";
-$pubkey = $debianroot . "/keyFile";
-$secretkey = $debianroot . "/secretkeyFile.gpg";
 $sourcefile = "";
+
+# get config file now, so that command line options
+# can override them if necessary
+getconfig;
+$pubkeyfile = $debianroot . "/publickeyFile.gpg";
+$secretkeyfile = $debianroot . "/secretkeyFile.gpg";
 
 # if no arguments given show usage
 my $no_arg = @ARGV;
@@ -425,15 +445,20 @@ getopts('FVt:k:K:b:hS:lp:r:x:d:sf:w:Rg:G:');
 # }
 #############################################
 
+
+##################################
+# testing
+#print "opt_b $opt_b\n" if $opt_b;
+#print "opt_K $opt_K\n" if $opt_K;
+#print "opt_k $opt_k\n" if $opt_k;
+#exit;
+
 # set up destinaton path of repository if given on command line
 if ($opt_x) {
-
-    	$debianroot = $opt_x;
-        # add change to hash for saving
-        $config{"debianroot"} = $opt_x;
+	$debianroot = $opt_x;
         
-        # set flag to say a change has been made
-        $config_changed = "true";
+     # set flag to say a change has been made
+     $config_changed = "true";
 }
 
 
@@ -450,10 +475,6 @@ if ($opt_R) {
 	exit 0;
 }
 
-# get config file now, so that command line options
-# can override them if necessary
-getconfig;
-
 # set the git repository if changed
 if ($opt_G) {
 	$gitrepopath = $opt_G;
@@ -463,9 +484,6 @@ if ($opt_G) {
 # set subversion respository path
 if ($opt_S) {
         $subversion = $opt_S;
-        
-        # add change to hash for saving
-        $config{"subversion"} = $opt_S;
         
         # set flag to say a change has been made
         $config_changed = "true";
@@ -479,8 +497,6 @@ $debianpool = $debianroot . "/pool";
 # set working directory if changed
 if ($opt_w) {
     $workingdir = $opt_w;
-        # add change to hash for saving
-        $config{"workingdir"} = $opt_w;
         
         # set flag to say a change has been made
         $config_changed = "true";
@@ -507,34 +523,36 @@ foreach $architem (@all_arch) {
 # secret key is binary
 # keys are written to default files if -b has no parameters
 if ($opt_b) {
+
 	# get full path names for the public and secret keys
-	($pubkey, $secretkey) = split /\s+/, $opt_b;
-
+	($pubkeyfile, $secretkeyfile) = split /\s+/, $opt_b;
+		
 	# create their directories if they do not exist
-	# print "pubkey is in " . dirname($pubkey) . "\n";
-	# print "secret key is in " . dirname($secretkey) . "\n";
-	mkpath(dirname($pubkey)) if ! -d dirname($pubkey);
-	mkpath(dirname($secretkey)) if ! -d dirname($secretkey);
+	# print "pubkey is in " . dirname($pubkeyfile) . "\n";
+	# print "secret key is in " . dirname($secretkeyfile) . "\n";
+	mkpath(dirname($pubkeyfile)) if ! -d dirname($pubkeyfile);
+	mkpath(dirname($secretkeyfile)) if ! -d dirname($secretkeyfile);
 
-	my $backuppub = "gpg --output ". $pubkey . " --export --armor";
+	my $backuppub = "gpg --output ". $pubkeyfile . " --export --armor";
 	system($backuppub) == 0 or die "$backuppub failed: $?\n";
 
-	my $backupsec = "gpg --output ". $secretkey . " --export-secret-keys --export-options backup";
+	my $backupsec = "gpg --output ". $secretkeyfile . " --export-secret-keys --export-options backup";
 	system($backupsec) == 0 or die "$backupsec failed: $?\n";
-	print "backed up public key to: " . $pubkey . "\n";
-	print "backed up secret key to: " . $secretkey . "\n";
+	print "backed up public key to: " . $pubkeyfile . "\n";
+	print "backed up secret key to: " . $secretkeyfile . "\n";
+
 }
 
 # import public key
 # the key is added to apt so archives can be read.
 if ($opt_k) {
-	my $command = "apt-key add " . $pubkey;
+	my $command = "apt-key add " . $opt_k;
 	system($command);
 }    
 
 # import the secret key for signing
 if ($opt_K) {
-	my $command = "gpg --import " . $secretkey;
+	my $command = "gpg --import " . $opt_K;
 	system($command);
 }
 
@@ -666,7 +684,7 @@ if ($opt_g) {
 	    	if (system($command) == 0) {
 			print "cloned " . $repository . $package . "/trunk\n";
 	    		# remove .git directory
-#    			system("rm -rf " . $workingdir . "/" . $package . "/.git");
+    			system("rm -rf " . $workingdir . "/" . $package . "/.git");
 		} else {
 			my $error = `cat /tmp/giterror.log`;
 			print "$error\n";
@@ -674,7 +692,7 @@ if ($opt_g) {
 	}
 	# build the package and move it to the tree
 	buildpackage($workingdir, @package_list);
-#	removeworkingdir;
+	removeworkingdir;
 }
 # if no options or h option print usage
 if ($opt_h or ($no_arg == 0)) {
