@@ -14,7 +14,7 @@ use File::Glob;
 
 # global variables
 my ($config_changed, $version, $configFile, $dist, @all_arch, $workingdir, $subversion, $gitrepopath, $debianroot, $debianpool, $pubkeyfile, $secretkeyfile, $sourcefile);
-my ($opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $opt_x, $opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_h, $opt_e, $opt_l, $opt_R, $opt_k, $opt_K);
+our ($opt_h, $opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $opt_x, $opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_e, $opt_l, $opt_R, $opt_k, $opt_K);
 
 # sub to get a source tarball and include it in the debian package for building
 # if it is required
@@ -238,7 +238,7 @@ sub getpackagefield {
 
 # movearchivetotree:
 # first parameter is full path to the archive
-# second parameter is status = debpackage | subversion
+# second parameter is status = debpackage | subversion | git
 # debpackage means the archive is a debpackage, rename it to standard form and copy to archive
 # subversion means the archive was exported from subversion, built, renamed to standard form and moved to archive
 # all destination directories are created
@@ -290,6 +290,10 @@ sub movearchivetotree {
 	# Insert file to repository if the new version > than the version in the repository
 	chdir $currentdir;
 	# check if version > max version unless force option is given
+
+	# archive name has changed to standard name
+	my $archive = $packagename . "_". $version . "_" . $architecture . ".deb";
+
 	if ($opt_F or ($version gt $max_version)) {
 		# delete all previous versions of files in the repository with the same packagename,
 		# architecture in the destination
@@ -299,17 +303,14 @@ sub movearchivetotree {
 		# make standard name and move
 		system("dpkg-name -o " . $origarchive . " > /dev/null 2>&1");
 
-		# archive name has changed to standard name
-		my $archive = $packagename . "_". $version . "_" . $architecture . ".deb";
-
 		#display message for move debpackage or build and move
 		if ($status eq "debpackage") {
 			# original file was a debpackage copy it
 			print "debpackage: ", $origarchive, " -> $destination/$archive\n";
 			system ("cp " . $archive . " " . $destination);
 		} else {
-			# original file was extracted from subversion and built, move it
-			print "subversion source:  ", $origarchive, " -> $destination/$archive\n";
+			# original file was extracted from subversion or git build it and move it
+			print "$status:  ", $origarchive, " -> $destination/$archive\n";
 			system ("mv " . $archive . " " . $destination);
 		}
 		# chmod of file in archive to 0666
@@ -318,7 +319,7 @@ sub movearchivetotree {
 	} else {
 		# version of new file < existing file
 		# file is not inserted
-		print "$origarchive not inserted $version <= $max_version\n";
+		print "$archive not inserted $version <= $max_version\n";
 	}
 }
 
@@ -332,8 +333,6 @@ sub add_archive {
 	if( -f $filename) {
 		# move archive to debian dist tree and create dirs
 		if ($filename =~ /\.deb$/) {
-			print "\n";
-			print "--------------------------------------------------------------------------------\n";
 			movearchivetotree($filename, "debpackage");
 		}
 	}
@@ -345,42 +344,35 @@ sub add_archive {
 # movetoarchivetree is called with debian package name and status subversion 
 sub buildpackage {
 	# get parameters
-	my($workdir, @package_list) = @_;
+	my($workdir, $package, $packagervs) = @_;
 
 	# change to working directory
 	chdir $workdir;
 
-	# for each package, build the package
-	foreach my $package (@package_list) {
-		# check if a package requires a source tarball
-		my $gsrc = getsource($package);
-		print "\n";
-		print "--------------------------------------------------------------------------------\n";
-		print "$package: building\n";
-		if ($gsrc) {
-			print "$package: $sourcefile included\n" if $gsrc == 1;
-		} else {
-			# gsrc undefined, source not found
-			# skip building package
-			print "$package: $sourcefile not found: skiping\n";
-			next;
-		}
-		# build the package
-		my $rc = system("dpkg-deb -b " . $package . " >/dev/null");
-		# check if build was successful
-		if ($rc == 0) {
-			# debian package name = package.deb
-			my $debpackage = $package . ".deb";
-
-			# move it to the tree
-			movearchivetotree($debpackage, "subversion");
-		} else {
-			# control file in DEBIAN directory is not valid or does not exist
-			print "control file of $package is not valid\n";
-		}
-
+	# build the package and move it to the debian archive
+	# check if a package requires a source tarball
+	my $gsrc = getsource($package);
+	if ($gsrc) {
+		print "$package: $sourcefile included\n" if $gsrc == 1;
+	} else {
+		# gsrc undefined, source not found
+		# skip building package
+		print "$package: $sourcefile not found: skiping\n";
+		return;
 	}
+	# build the package
+	my $rc = system("dpkg-deb -b " . $package . " >/dev/null");
+	# check if build was successful
+	if ($rc == 0) {
+		# debian package name = package.deb
+		my $debpackage = $package . ".deb";
 
+		# move it to the tree
+		movearchivetotree($debpackage, $packagervs);
+	} else {
+		# control file in DEBIAN directory is not valid or does not exist
+		print "control file of $package is not valid\n";
+	}
 }
 
 sub usage {
@@ -436,24 +428,6 @@ defaultparameter();
 
 # get command line options
 getopts('FVt:k:K:b:hS:lp:r:x:d:sf:w:Rg:G:');
-
-################# testing ###################
-# print "after getopts\n";
-# print "no of args $no_arg\n";
-# print "ARGV: @ARGV \n";
-
-# foreach my $item (@ARGV) {
-#	print "item: $item\n";
-# }
-#############################################
-
-
-##################################
-# testing
-#print "opt_b $opt_b\n" if $opt_b;
-#print "opt_K $opt_K\n" if $opt_K;
-#print "opt_k $opt_k\n" if $opt_k;
-#exit;
 
 # set up destinaton path of archive if given on command line
 if ($opt_x) {
@@ -564,30 +538,30 @@ if ($opt_l) {
 }
 
 # set up subversion export command
+# ensure $subversion is appended by /
+$subversion = $subversion . "/" unless $subversion =~ /\/$/;
+
 my $subversioncmd = "svn --force -q export " . $subversion;
-# ensure subversioncmd is appended by /
-$subversioncmd = $subversioncmd . "/" unless $subversioncmd =~ /\/$/;
 
 # export the trunk from subversion, build the package and move to the debian tree
 if ($opt_t) {
 	# export package from trunk and build it, insert into debian repository
     	removeworkingdir;
-	# checkout each package in list $opt_t is a space separated string
-	print "\n";
-	print "--------------------------------------------------------------------------------\n";
 	my @package_list = split /\s+/, $opt_t;
 	foreach my $package (@package_list) {
+		# checkout each package in list $opt_t is a space separated string
+		print "\n";
+		print "--------------------------------------------------------------------------------\n";
     		my $command = $subversioncmd . $package . "/trunk " . $workingdir . "/" . $package . " 1>/tmp/svn.log 2>/tmp/svnerror.log";
 	    	if (system($command) == 0) {
 			print "exported " . $subversion . $package . "/trunk\n";
+			# build the package and move it to the tree
+			buildpackage($workingdir, $package, "subversion trunk");
 		} else {
 			my $error = `cat /tmp/svnerror.log`;
 			print "$error\n";
 		}
-	}
-	# build the package and move it to the tree
-	buildpackage($workingdir, @package_list);
-	removeworkingdir;
+	} # end foreach
 }
 # export the latest release, build the package and move to the debian tree
 # also check if a source tarball is required and insert it into the debian package
@@ -595,33 +569,65 @@ if ($opt_p) {
 	# empty working dir incase
 	removeworkingdir;
 	# checkout each package in list $opt_p is a space separated string
-	print "\n";
-	print "--------------------------------------------------------------------------------\n";
 	my @package_list = split /\s+/, $opt_p;
 	foreach my $package (@package_list) {
-	# get latest release no
-	my $release = getmaxrelease($package);
-	if ($release) {
-	    	my $command = $subversioncmd . $package . "/release/" . $release . " " . $workingdir . "/" . $package . " 1>/tmp/svn.log 2>/tmp/svnerror.log";
-	    	if (system($command) == 0) {
-			print "exported " . $subversion . $package . "/release/" . $release . "\n";
+		print "\n";
+		print "--------------------------------------------------------------------------------\n";
+		# get latest release no
+		my $release = getmaxrelease($package);
+		if ($release) {
+		    	my $command = $subversioncmd . $package . "/release/" . $release . " " . $workingdir . "/" . $package . " 1>/tmp/svn.log 2>/tmp/svnerror.log";
+	    		if (system($command) == 0) {
+				print "exported " . $subversion . $package . "/release/" . $release . "\n";
+				# build the package and move it to the tree
+				buildpackage($workingdir, $package, "subversion release");
+			} else {
+				my $error = `cat /tmp/svnerror.log`;
+				print "$error\n";
+			}
 		} else {
-			my $error = `cat /tmp/svnerror.log`;
+			print "There is no release for package $package\n";
+		} # end if release
+	} # end foreach
+}
+
+# export a package from git, build it and insert into the repository
+# export to depth 1 and delete .git directory
+if ($opt_g) {
+    	removeworkingdir;
+	# checkout each package in list $opt_t is a space separated string
+	my @package_list = split /\s+/, $opt_g;
+	my $gitclone = "git clone --single-branch --depth 1 --no-tags ";
+
+	# add a final / to gitrepopath if one does not exist
+	$gitrepopath = $gitrepopath . "/" unless $gitrepopath =~ /\/$/;
+	
+	foreach my $package (@package_list) {
+		print "\n";
+		print "--------------------------------------------------------------------------------\n";
+		my $projectrepo = $gitrepopath . "$package" . "\.git";
+    		my $command = $gitclone . "-b " . $package . " " . $projectrepo . " " . $workingdir . "/" . $package . " 1>/tmp/git.log 2>/tmp/giterror.log";
+
+	    	if (system($command) == 0) {
+			print "cloned: " . $gitrepopath . $package . "/.git\n";
+	    		# remove .git directory
+    			system("rm -rf " . $workingdir . "/" . $package . "/.git");
+			# build the package and move it to the tree
+			buildpackage($workingdir, $package, "git");
+		} else {
+			my $error = `cat /tmp/giterror.log`;
 			print "$error\n";
 		}
-	} else {
-		print "There is no release for package $package\n";
-	} # end if release
 	}
-	# build the package and move it to the tree
-	buildpackage($workingdir, @package_list);
-	removeworkingdir;
 }
+
 # process a dir recursively and copy all debian archives to tree
 # search each dir for DEBIAN/control. If found build package.
 # the opt_r can be a space separated directory list
 if ($opt_r) {
 	my @directory_list = split /\s+/, $opt_r;
+	print "\n";
+	print "--------------------------------------------------------------------------------\n";
 	foreach my $directory (@directory_list) {
     		die "cannot open $directory" if ! -d $directory;
 
@@ -632,8 +638,12 @@ if ($opt_r) {
 
 # add one specific file to the archive
 if ($opt_f) {
+	print "\n";
+	print "--------------------------------------------------------------------------------\n";
 	movearchivetotree($opt_f, "debpackage");			
 }
+print "\n";
+print "--------------------------------------------------------------------------------\n";
 
 # scan pool and make Packages file
 if ($opt_s) {
@@ -667,37 +677,8 @@ if ($opt_s) {
 	chdir $currentdir;
 }
 
-# export a package from git, build it and insert into the repository
-# export to depth 1 and delete .git directory
-if ($opt_g) {
-    	removeworkingdir;
-	# checkout each package in list $opt_t is a space separated string
-	print "\n";
-	print "--------------------------------------------------------------------------------\n";
-	my @package_list = split /\s+/, $opt_g;
-	my $gitclone = "git clone --single-branch --depth 1 --no-tags ";
-
-	# add a final / to gitrepopath if one does not exist
-	$gitrepopath = $gitrepopath . "/" unless $gitrepopath =~ /\/$/;
-	
-	foreach my $package (@package_list) {
-		my $projectrepo = $gitrepopath . "$package" . "\.git";
-    		my $command = $gitclone . "-b " . $package . " " . $projectrepo . " " . $workingdir . "/" . $package . " 1>/tmp/git.log 2>/tmp/giterror.log";
-
-	    	if (system($command) == 0) {
-			print "cloned: " . $gitrepopath . $package . "/.git\n";
-	    		# remove .git directory
-    			system("rm -rf " . $workingdir . "/" . $package . "/.git");
-		} else {
-			my $error = `cat /tmp/giterror.log`;
-			print "$error\n";
-		}
-	}
-	# build the package and move it to the tree
-	buildpackage($workingdir, @package_list);
-	removeworkingdir;
-}
 # if no options or h option print usage
+
 if ($opt_h or ($no_arg == 0)) {
 	usage;
 	# exit
