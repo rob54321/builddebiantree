@@ -612,6 +612,10 @@ if ($opt_g) {
 			print "cloned: " . $gitrepopath . $package . "/.git\n";
 	    		# remove .git directory
     			system("rm -rf " . $workingdir . "/" . $package . "/.git");
+
+    			# remove the readme file
+    			unlink "$workingdir" . "/" . "$package" . "/README.md";
+    			
 			# build the package and move it to the tree
 			buildpackage($workingdir, $package, "git");
 		} else {
