@@ -657,7 +657,7 @@ if ($opt_g) {
     		my $command = $gitclone . "-b " . $package . " " . $projectrepo . " " . $workingdir . "/" . $package . " 1>/tmp/git.log 2>/tmp/giterror.log";
 
 	    	if (system($command) == 0) {
-			print "cloned: " . $gitrepopath . $package . "/.git\n";
+			print "cloned: " . $gitrepopath . $package . "/.git" . " -- " . $package . " branch\n";
 	    		# remove .git directory
     			system("rm -rf " . $workingdir . "/" . $package . "/.git");
 
@@ -691,7 +691,7 @@ if ($opt_d) {
     		my $command = $gitclone . "-b dev " . $projectrepo . " " . $workingdir . "/" . $package . " 1>/tmp/git.log 2>/tmp/giterror.log";
 
 	    	if (system($command) == 0) {
-			print "cloned: " . $gitrepopath . $package . "/.git\n";
+			print "cloned: " . $gitrepopath . $package . "/.git -- dev branch\n";
 	    		# remove .git directory
     			system("rm -rf " . $workingdir . "/" . $package . "/.git");
 
