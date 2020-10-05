@@ -18,46 +18,81 @@ our ($opt_h, $opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $opt_x, $op
 
 # sub to get a source tarball and include it in the debian package for building
 # if it is required
-# The postinst is checked to see if it has FILE=/mnt/hdd/debhome/source/.....
+# the source file is kept in debianroot/source
+# The postinst is checked to see if it has SOURCE=veracrypt_$VERSION.tar.gz
 # this is done so the tarball does not have to be included in subversion
 # package name is passed as a parameter. The full directory is
 # $workingdir/$packagename
-# returns 1 if tarball included in package
-# returns 2 if there is no tarball to be included
-# returns undef if there is a tarball to be included but it cannot be found
+# returns 1 if tarball sucessfully included in package
+# returns 2 if no source required, there may or may not be a postinst
+# returns 3 if sourcefile name defined in postinst but not the version
+# returns 4 if version defined in postinst but not the source name
+# returns 5 if source name and version defined but no source file found
 sub getsource {
 	my $package = shift;
 	my $postinst = "$workingdir/$package/DEBIAN/postinst";
-	
-	# check DEBIAN/postinst
-	return 2 if ! -f $postinst;
+	my $file_version = undef;
 
-	# check the postinst for FILE=/mnt/hdd/debhome/source
-	# get the version first, FILE=/mnt/hdd/debhome/source/name-$VERSION.tar.bz2
+	# if a source file is to be loaded then postinst will have:
+	#VERSION=version_no
+	#SOURCE=sourefile-version.tar.gz
+	# get the version first, 
 	# return 2 if no version or no FILE=
 	# return undef if file not found
-	my $fversion = `grep 'VERSION=' $postinst`;
-	chomp $fversion;
-	return 2 if ! $fversion;
-	$fversion =~ s/VERSION=//;
-
-	# statement can be FILE="/.. FILE='/.. or FILE=/..
-	# needs to be fixed if debianroot changes, source directory will change
-	$sourcefile = `grep -e 'FILE=["[:punct:]]/mnt/hdd/debhome/source' -e 'FILE=/mnt/hdd/debhome/source' $postinst`;
-	chomp $sourcefile;
-	return 2 if ! $sourcefile;
-	$sourcefile =~ s/FILE=//;		# strip FILE= from the begining
-	$sourcefile =~ s/\$VERSION/$fversion/;	# insert numeric version no
-	$sourcefile =~ s/"|\'//g; 		# strip quotes
-	#print "sourcefile: $sourcefile\n";
-	# check if source file exists
-	return undef if ! -f $sourcefile;
-	
-	# copy to the source file to $workingdir/$package/tmp
-	mkdir "$workingdir/$package/tmp" if ! -d "$workingdir/$package/tmp";
-	my $copycmd = "cp -f $sourcefile $workingdir/$package/tmp/";
-	system($copycmd);
-	return 1;	
+	if (open POSTINST, "<", $postinst) {
+		#postinst exists, check for VERSION and SOURCE
+		while (my $line = <POSTINST>) {
+			chomp($line);
+			if ($line =~ /^VERSION=/) {
+				# strip VERSION=
+				$line =~ s/^VERSION=//;
+				# remove ' and " from $line
+				$line =~ s/"|\'//g;
+				$file_version = $line;
+				# if the source file has been found
+				
+			} elsif ($line =~ /^SOURCE=/) {
+				# SOURCE found
+				$line =~ s/^SOURCE=//;
+				# remove ' and ". $line now contains name$VERSION.tar.gz
+				$line =~ s/"|\'//g;
+				$sourcefile = $line;
+			}
+		} # end while
+		close POSTINST;
+	} else {
+		# there is no postinst and no source
+		return 2;
+	} # end if open
+		
+	# if version found set the sourcefile name
+	if ($file_version and $sourcefile and (-f $sourcefile)) {
+		# source file = name$VERSION.tar.gz
+		# replace $VERSION with the version
+		$sourcefile =~ s/\$VERSION/$file_version/;
+		$sourcefile = $debianroot . "/source/" . $sourcefile;
+		
+		# copy to the source file to $workingdir/$package/tmp
+		mkdir "$workingdir/$package/tmp" if ! -d "$workingdir/$package/tmp";
+		my $copycmd = "cp -f $sourcefile $workingdir/$package/tmp/";
+		system($copycmd);
+		return 1;	
+	} elsif ($sourcefile and (! $file_version)) {
+		# only sourcefile name was found but no version in postinst
+		return 3;
+	} elsif ($file_version and (! $sourcefile)) {
+		# only version was found but no source file name in postinst
+		return 4;
+	} elsif ($file_version and $sourcefile and (! -f $sourcefile)) {
+		# the source file name and version found in postinst
+		# but the sourcefile does not exist
+		$sourcefile =~ s/\$VERSION/$file_version/;
+		$sourcefile = $debianroot . "/source/" . $sourcefile;
+		return 5;
+	} elsif ((! $file_version) and (! $sourcefile)) {
+		# there is a postinst but no source required
+		return 2;
+	} # end if file_version and sourcefile
 }
 
 # sub to get the maximum release number for a package from subversion
@@ -351,13 +386,27 @@ sub buildpackage {
 
 	# build the package and move it to the debian archive
 	# check if a package requires a source tarball
+	# getsource returns:
+	# returns 1 if tarball sucessfully included in package
+	# returns 2 if no source required, there may or may not be a postinst
+	# returns 3 if sourcefile name defined in postinst but not the version
+	# returns 4 if version defined in postinst but not the source name
+	# returns 5 if source name and version defined but no source file found
+
 	my $gsrc = getsource($package);
-	if ($gsrc) {
-		print "$package: $sourcefile included\n" if $gsrc == 1;
-	} else {
-		# gsrc undefined, source not found
-		# skip building package
-		print "$package: $sourcefile not found: skiping\n";
+	if ($gsrc == 1) {
+		print "$package: $sourcefile included\n"
+	} elsif ($gsrc == 3) {
+		# source file name defined but no version
+		print "$package: source name found but not version: skiping\n";
+		return;
+	} elsif ($gsrc == 4) {
+		# source version defined in postinst but not source file name
+		print "$package: source version found but not source file name: skipping\n";
+		return;
+	} elsif ($gsrc == 5) {
+		# source and version defined but file not found
+		print "$package: $sourcefile defined but not found: skipping\n";
 		return;
 	}
 	# build the package
@@ -407,7 +456,7 @@ $workingdir = "/tmp/debian";
 $subversion = "file:///mnt/svn/debian";
 $gitrepopath = "https://github.com/rob54321";
 $debianroot = "/mnt/hdd/debhome";
-$sourcefile = "";
+$sourcefile = undef;
 
 # get config file now, so that command line options
 # can override them if necessary
@@ -432,7 +481,9 @@ getopts('FVt:k:K:b:hS:lp:r:x:d:sf:w:Rg:G:');
 # set up destinaton path of archive if given on command line
 if ($opt_x) {
 	$debianroot = $opt_x;
-        
+	# strip any trailing /
+	$debianroot =~ s/\/$//;
+	        
      # set flag to say a change has been made
      $config_changed = "true";
 }
