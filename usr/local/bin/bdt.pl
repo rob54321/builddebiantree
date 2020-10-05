@@ -14,7 +14,7 @@ use File::Glob;
 
 # global variables
 my ($config_changed, $version, $configFile, $dist, @all_arch, $workingdir, $subversion, $gitrepopath, $debianroot, $debianpool, $pubkeyfile, $secretkeyfile, $sourcefile);
-our ($opt_h, $opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $opt_x, $opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_e, $opt_l, $opt_R, $opt_k, $opt_K);
+our ($opt_h, $opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $opt_x, $opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_d, $opt_l, $opt_R, $opt_k, $opt_K);
 
 # sub to get a source tarball and include it in the debian package for building
 # if it is required
@@ -638,7 +638,7 @@ if ($opt_p) {
 	} # end foreach
 }
 
-# export a package from git, build it and insert into the repository
+# export a package from git, project branch, build it and insert into the repository
 # export to depth 1 and delete .git directory
 if ($opt_g) {
     	removeworkingdir;
@@ -672,6 +672,39 @@ if ($opt_g) {
 	}
 }
 
+# export a package from git, development branch, build it and insert into the repository
+# export to depth 1 and delete .git directory
+if ($opt_d) {
+    	removeworkingdir;
+	# checkout each package in list $opt_t is a space separated string
+	my @package_list = split /\s+/, $opt_d;
+	my $gitclone = "git clone --single-branch --depth 1 --no-tags ";
+
+	# add a final / to gitrepopath if one does not exist
+	$gitrepopath = $gitrepopath . "/" unless $gitrepopath =~ /\/$/;
+	
+	foreach my $package (@package_list) {
+		print "\n";
+		print "--------------------------------------------------------------------------------\n";
+		my $projectrepo = $gitrepopath . "$package" . "\.git";
+    		my $command = $gitclone . "-b dev " . $projectrepo . " " . $workingdir . "/" . $package . " 1>/tmp/git.log 2>/tmp/giterror.log";
+
+	    	if (system($command) == 0) {
+			print "cloned: " . $gitrepopath . $package . "/.git\n";
+	    		# remove .git directory
+    			system("rm -rf " . $workingdir . "/" . $package . "/.git");
+
+    			# remove the readme file
+    			unlink "$workingdir" . "/" . "$package" . "/README.md";
+    			
+			# build the package and move it to the tree
+			buildpackage($workingdir, $package, "git");
+		} else {
+			my $error = `cat /tmp/giterror.log`;
+			print "$error\n";
+		}
+	}
+}
 # process a dir recursively and copy all debian archives to tree
 # search each dir for DEBIAN/control. If found build package.
 # the opt_r can be a space separated directory list
