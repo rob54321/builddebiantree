@@ -66,12 +66,14 @@ sub getsource {
 	} # end if open
 		
 	# if version found set the sourcefile name
-	if ($file_version and $sourcefile and (-f $sourcefile)) {
+	if ($file_version and $sourcefile) {
 		# source file = name$VERSION.tar.gz
 		# replace $VERSION with the version
 		$sourcefile =~ s/\$VERSION/$file_version/;
 		$sourcefile = $debianroot . "/source/" . $sourcefile;
-		
+		# check if source file exists, return error otherwise
+		return 5 unless -e $sourcefile;
+				
 		# copy to the source file to $workingdir/$package/tmp
 		mkdir "$workingdir/$package/tmp" if ! -d "$workingdir/$package/tmp";
 		my $copycmd = "cp -f $sourcefile $workingdir/$package/tmp/";
@@ -83,12 +85,6 @@ sub getsource {
 	} elsif ($file_version and (! $sourcefile)) {
 		# only version was found but no source file name in postinst
 		return 4;
-	} elsif ($file_version and $sourcefile and (! -f $sourcefile)) {
-		# the source file name and version found in postinst
-		# but the sourcefile does not exist
-		$sourcefile =~ s/\$VERSION/$file_version/;
-		$sourcefile = $debianroot . "/source/" . $sourcefile;
-		return 5;
 	} elsif ((! $file_version) and (! $sourcefile)) {
 		# there is a postinst but no source required
 		return 2;
