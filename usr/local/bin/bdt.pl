@@ -428,7 +428,8 @@ sub usage {
 -l list debian packages in subversion\
 -p [\"pkg1 pkg2 ...\"] extract package latest release from subversion -> build -> add to distribution tree\
 -t [\"pkg1 pkg2 ...\"] extract package from trunk in subversion, build->add to archive tree\
--g [\"pkg1 pkg2 ...\"] extract package from git, build->add to tree\
+-g [\"pkg1 pkg2 ...\"] extract package from git project branch, build->add to tree\
+-d [\"pkg1 pkg2 ...\"] extract package from git dev branch, build->add to tree\
 -r [\"dir1 dir2 ...\"] recurse directory for deb packages list containing full paths, build -> add to archive\
 -F force package to be inserted in tree regardless of version\
 -x destination path of archive default: $debianroot\
