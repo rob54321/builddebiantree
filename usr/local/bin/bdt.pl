@@ -14,7 +14,7 @@ use File::Glob;
 
 # global variables
 my ($config_changed, $version, $configFile, $dist, @all_arch, $workingdir, $subversion, $gitrepopath, $debianroot, $debianpool, $pubkeyfile, $secretkeyfile, $sourcefile);
-our ($opt_h, $opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $opt_x, $opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_d, $opt_l, $opt_R, $opt_k, $opt_K);
+our ($opt_a, $opt_h, $opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $opt_x, $opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_d, $opt_l, $opt_R, $opt_k, $opt_K);
 
 # sub to get a source tarball and include it in the debian package for building
 # if it is required
@@ -433,6 +433,7 @@ sub usage {
 -r [\"dir1 dir2 ...\"] recurse directory for deb packages list containing full paths, build -> add to archive\
 -F force package to be inserted in tree regardless of version\
 -x destination path of archive default: $debianroot\
+-a edit /etc/apt/sources to include new debhome\
 -s scan packages to make Packages\
 -S full path of subversion default: $subversion\
 -G full path of git repo, default: $gitrepopath\
@@ -473,7 +474,7 @@ defaultparameter();
 # print "after:  @ARGV\n";
 
 # get command line options
-getopts('FVt:k:K:b:hS:lp:r:x:d:sf:w:Rg:G:');
+getopts('aFVt:k:K:b:hS:lp:r:x:d:sf:w:Rg:G:');
 
 # set up destinaton path of archive if given on command line
 if ($opt_x) {
@@ -485,6 +486,15 @@ if ($opt_x) {
      $config_changed = "true";
 }
 
+# edit /etc/apt/sources to include new dehome location
+if ($opt_a) {
+	# sources.list contains
+	# deb file:///mnt/hdd/debhome home main
+	# delete existing line
+	system("sed --in-place=.bak1 -e '/debhome/d' /etc/apt/sources.list");
+	# add current debian root
+	system("sed --in-place=.bak2 -e '\$ a\\deb file://$debianroot home main' /etc/apt/sources.list");
+}
 
 # print version and exit
 if ($opt_V) {
