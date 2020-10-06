@@ -602,6 +602,7 @@ $subversion = $subversion . "/" unless $subversion =~ /\/$/;
 my $subversioncmd = "svn --force -q export " . $subversion;
 
 # export the trunk from subversion, build the package and move to the debian tree
+# if there is no trunk directory then export from the project directory
 if ($opt_t) {
 	# export package from trunk and build it, insert into debian repository
     	removeworkingdir;
@@ -610,9 +611,13 @@ if ($opt_t) {
 		# checkout each package in list $opt_t is a space separated string
 		print "\n";
 		print "--------------------------------------------------------------------------------\n";
-    		my $command = $subversioncmd . $package . "/trunk " . $workingdir . "/" . $package . " 1>/tmp/svn.log 2>/tmp/svnerror.log";
+		# check if trunk exists
+		my $trunk = "/trunk";
+		my $rc = system("svn list " . $subversion . $package . "/trunk > /tmp/svn.log 2>&1");
+		$trunk = "/" unless $rc == 0;
+    		my $command = $subversioncmd . $package . $trunk . " " . $workingdir . "/" . $package . " 1>/tmp/svn.log 2>/tmp/svnerror.log";
 	    	if (system($command) == 0) {
-			print "exported " . $subversion . $package . "/trunk\n";
+			print "exported " . $subversion . $package . $trunk . "\n";
 			# build the package and move it to the tree
 			buildpackage($workingdir, $package, "subversion trunk");
 		} else {
