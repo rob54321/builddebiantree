@@ -748,7 +748,7 @@ if ($opt_s) {
 	chdir $debianroot;
 
 	# there is only one distribution ie $debianroot / dists / home 
-	# which contains amd64, i386 and armhf
+	# which contains amd64, i386, arm64 and armhf
 	# scan all three architectures and write to dists/home/main/binary-arch/Packages
 	foreach my $arch (@all_arch) {
 		system("apt-ftparchive  --arch " . $arch . " packages pool > dists/" . $dist . "/main/binary-". $arch . "/Packages");
@@ -762,7 +762,7 @@ if ($opt_s) {
 	# there is only one release file for all architectures in debianroot/dists/home
 	chdir $debianroot . "/dists/" . $dist;
 	unlink("Release");
-        system("apt-ftparchive -c=/usr/local/bin/apt-ftparchive-home.conf release . > Release");
+     system("apt-ftparchive -c=/usr/local/bin/apt-ftparchive-home.conf release . > Release");
 
 	# the release file has changed , it must be signed
 	system("gpg --clearsign -o InRelease Release");
