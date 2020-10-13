@@ -676,9 +676,10 @@ if ($opt_g) {
 	    		# remove .git directory
     			system("rm -rf " . $workingdir . "/" . $package . "/.git");
 
-    			# remove the readme file
+    			# remove the readme file and .gitignore
     			unlink "$workingdir" . "/" . "$package" . "/README.md";
-    			
+    			unlink "$workingdir" . "/" . "$package" . "/.gitignore";
+
 			# build the package and move it to the tree
 			buildpackage($workingdir, $package, "git");
 		} else {
@@ -710,8 +711,9 @@ if ($opt_d) {
 	    		# remove .git directory
     			system("rm -rf " . $workingdir . "/" . $package . "/.git");
 
-    			# remove the readme file
+    			# remove the readme file and .gitignore
     			unlink "$workingdir" . "/" . "$package" . "/README.md";
+    			unlink "$workingdir" . "/" . "$package" . "/.gitignore";
     			
 			# build the package and move it to the tree
 			buildpackage($workingdir, $package, "git");
