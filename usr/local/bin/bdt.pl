@@ -447,7 +447,7 @@ sub usage {
 
 # default values
 $version = 2.45;
-$configFile = "/root/.bdt.rc";
+$configFile = "bdt.rc";
 $dist = "home";
 @all_arch = ("amd64", "i386", "armhf", "arm64");
 $workingdir = "/tmp/debian";
