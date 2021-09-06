@@ -1,5 +1,5 @@
 Package: builddebiantree
-Version: 2.45
+Version: 2.46
 Architecture: all
 Maintainer: Robert Key robkey@mighty.co.za
 Depends: perl, dpkg, bzip2, tar, dpkg-dev, apt-utils, subversion | svn-src, gpg
