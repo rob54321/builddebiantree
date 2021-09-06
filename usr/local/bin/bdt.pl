@@ -19,57 +19,41 @@ our ($opt_a, $opt_h, $opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $op
 # sub to get a source tarball and include it in the debian package for building
 # if it is required
 # the source file is kept in debianroot/source
-# The postinst is checked to see if it has SOURCE=veracrypt_$VERSION.tar.gz
+# The postinst is checked to see if it has SOURCE=source_file, tar or bz2 or tar.gz or tar.bz2
 # this is done so the tarball does not have to be included in subversion
 # package name is passed as a parameter. The full directory is
 # $workingdir/$packagename
 # returns 1 if tarball sucessfully included in package
 # returns 2 if no source required, there may or may not be a postinst
-# returns 3 if sourcefile name defined in postinst but not the version
-# returns 4 if version defined in postinst but not the source name
-# returns 5 if source name and version defined but no source file found
+# returns 5 if SOURCE is defined but file not found
 sub getsource {
 	my $package = shift;
 	my $postinst = "$workingdir/$package/DEBIAN/postinst";
-	my $file_version = undef;
 
 	# if a source file is to be loaded then postinst will have:
-	#VERSION=version_no
-	#SOURCE=sourefile-version.tar.gz
-	# get the version first, 
-	# return 2 if no version or no FILE=
-	# return undef if file not found
+	#SOURCE=sourefile-version.tar.gz | sourcefile-version.tar.bz2 etc
+	# return 2 if there is no SOURCE=
 	if (open POSTINST, "<", $postinst) {
-		#postinst exists, check for VERSION and SOURCE
+		#postinst exists, check for SOURCE to find sourcefile name
 		while (my $line = <POSTINST>) {
 			chomp($line);
-			if ($line =~ /^VERSION=/) {
-				# strip VERSION=
-				$line =~ s/^VERSION=//;
-				# remove ' and " from $line
-				$line =~ s/"|\'//g;
-				$file_version = $line;
-				# if the source file has been found
-				
-			} elsif ($line =~ /^SOURCE=/) {
+			if ($line =~ /^SOURCE=/) {
 				# SOURCE found
 				$line =~ s/^SOURCE=//;
-				# remove ' and ". $line now contains name$VERSION.tar.gz
+				# remove ' and/or ". $line now contains filename-version.tar.bz2 or gz or tar
 				$line =~ s/"|\'//g;
 				$sourcefile = $line;
 			}
 		} # end while
 		close POSTINST;
 	} else {
-		# there is no postinst and no source
+		# there is no postinst and hence no source
 		return 2;
 	} # end if open
 		
 	# if version found set the sourcefile name
-	if ($file_version and $sourcefile) {
-		# source file = name$VERSION.tar.gz
-		# replace $VERSION with the version
-		$sourcefile =~ s/\$\{VERSION\}/$file_version/;
+	if ($sourcefile) {
+		# set sourcefile to full path name
 		$sourcefile = $debianroot . "/source/" . $sourcefile;
 		# check if source file exists, return error otherwise
 		return 5 unless -e $sourcefile;
@@ -79,13 +63,7 @@ sub getsource {
 		my $copycmd = "cp -f $sourcefile $workingdir/$package/tmp/";
 		system($copycmd);
 		return 1;	
-	} elsif ($sourcefile and (! $file_version)) {
-		# only sourcefile name was found but no version in postinst
-		return 3;
-	} elsif ($file_version and (! $sourcefile)) {
-		# only version was found but no source file name in postinst
-		return 4;
-	} elsif ((! $file_version) and (! $sourcefile)) {
+	} else {
 		# there is a postinst but no source required
 		return 2;
 	} # end if file_version and sourcefile
@@ -385,21 +363,12 @@ sub buildpackage {
 	# getsource returns:
 	# returns 1 if tarball sucessfully included in package
 	# returns 2 if no source required, there may or may not be a postinst
-	# returns 3 if sourcefile name defined in postinst but not the version
-	# returns 4 if version defined in postinst but not the source name
 	# returns 5 if source name and version defined but no source file found
 
 	my $gsrc = getsource($package);
 	if ($gsrc == 1) {
 		print "$package: $sourcefile included\n"
-	} elsif ($gsrc == 3) {
-		# source file name defined but no version
-		print "$package: source name found but not version: skiping\n";
-		return;
-	} elsif ($gsrc == 4) {
-		# source version defined in postinst but not source file name
-		print "$package: source version found but not source file name: skipping\n";
-		return;
+	
 	} elsif ($gsrc == 5) {
 		# source and version defined but file not found
 		print "$package: $sourcefile defined but not found: skipping\n";
