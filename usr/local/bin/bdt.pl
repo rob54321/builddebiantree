@@ -415,7 +415,7 @@ sub usage {
 }
 
 # default values
-$version = 2.45;
+$version = 2.46;
 $configFile = "$ENV{'HOME'}/.bdt.rc";
 $dist = "home";
 @all_arch = ("amd64", "i386", "armhf", "arm64");
