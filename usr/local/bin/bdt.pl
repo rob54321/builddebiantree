@@ -69,7 +69,7 @@ sub getsource {
 	if ($file_version and $sourcefile) {
 		# source file = name$VERSION.tar.gz
 		# replace $VERSION with the version
-		$sourcefile =~ s/\$VERSION/$file_version/;
+		$sourcefile =~ s/\$\{VERSION\}/$file_version/;
 		$sourcefile = $debianroot . "/source/" . $sourcefile;
 		# check if source file exists, return error otherwise
 		return 5 unless -e $sourcefile;
