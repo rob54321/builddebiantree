@@ -415,14 +415,14 @@ sub usage {
 }
 
 # default values
-$version = 2.46;
+$version = 2.47;
 $configFile = "$ENV{'HOME'}/.bdt.rc";
 $dist = "home";
 @all_arch = ("amd64", "i386", "armhf", "arm64");
 $workingdir = "/tmp/debian";
 $subversion = "file:///mnt/svn/debian";
 $gitrepopath = "https://github.com/rob54321";
-$debianroot = "/mnt/hdd/debhome";
+$debianroot = "/mnt/debhome";
 $sourcefile = undef;
 
 # get config file now, so that command line options
