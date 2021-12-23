@@ -375,7 +375,7 @@ sub buildpackage {
 		return;
 	}
 	# build the package
-	my $rc = system("dpkg-deb -b -Z gzip" . $package . " >/dev/null");
+	my $rc = system("dpkg-deb -b -Z gzip " . $package . " >/dev/null");
 	# check if build was successful
 	if ($rc == 0) {
 		# debian package name = package.deb
