@@ -375,7 +375,7 @@ sub buildpackage {
 		return;
 	}
 	# build the package
-	my $rc = system("dpkg-deb -b " . $package . " >/dev/null");
+	my $rc = system("dpkg-deb -b -Z gzip" . $package . " >/dev/null");
 	# check if build was successful
 	if ($rc == 0) {
 		# debian package name = package.deb
@@ -415,7 +415,7 @@ sub usage {
 }
 
 # default values
-$version = 2.47;
+$version = 2.471;
 $configFile = "$ENV{'HOME'}/.bdt.rc";
 $dist = "home";
 @all_arch = ("amd64", "i386", "armhf", "arm64");
