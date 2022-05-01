@@ -13,7 +13,7 @@ use Cwd;
 use File::Glob;
 
 # global variables
-my ($config_changed, $version, $configFile, $dist, @all_arch, $workingdir, $subversion, $gitrepopath, $debianroot, $debianpool, $pubkeyfile, $secretkeyfile, $sourcefile);
+my ($config_changed, $version, $configFile, $dist, @all_arch, $workingdir, $subversion, $gitrepopath, $debianroot, $debianpool, $pubkeyfile, $secretkeyfile, $sourcefile, $debhomepub, $debhomesec);
 our ($opt_a, $opt_h, $opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $opt_x, $opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_d, $opt_l, $opt_R, $opt_k, $opt_K);
 
 # sub to get a source tarball and include it in the debian package for building
@@ -119,8 +119,8 @@ sub defaultparameter {
 			$debianroot = $ARGV[$i+1];
 			# check and remove final / from debianroot
 			$debianroot =~ s/\/$//;
-			$pubkeyfile = $debianroot . "/publickeyFile.gpg";
-			$secretkeyfile = $debianroot . "/secretkeyFile.gpg";
+			$pubkeyfile = $debianroot . "/" . $debhomepub;
+			$secretkeyfile = $debianroot . "/" . $debhomesec;
 			last;
 		}
 	}
@@ -424,12 +424,17 @@ $subversion = "file:///mnt/svn/debian";
 $gitrepopath = "https://github.com/rob54321";
 $debianroot = "/mnt/debhome";
 $sourcefile = undef;
+$debhomepub = "debhomepubkey.asc";
+$debhomesec = "debhomeseckey.gpg";
 
 # get config file now, so that command line options
 # can override them if necessary
 getconfig;
-$pubkeyfile = $debianroot . "/publickeyFile.gpg";
-$secretkeyfile = $debianroot . "/secretkeyFile.gpg";
+
+# debian root may have changed.
+# keyfile are set here.
+$pubkeyfile = $debianroot . "/" . $debhomepub;
+$secretkeyfile = $debianroot . "/" . $debhomesec;
 
 # if no arguments given show usage
 my $no_arg = @ARGV;
@@ -439,6 +444,7 @@ my $no_arg = @ARGV;
 
 ################## testing ##################
 # print "before: @ARGV\n";
+# the defaultparameter() may change debianroot the pubkeyFile and secretkeyFile values
 defaultparameter();
 # print "after:  @ARGV\n";
 
@@ -524,6 +530,7 @@ foreach my $architem (@all_arch) {
 # public key is written in armor format
 # secret key is binary
 # keys are written to default files if -b has no parameters
+# non default parameters order: publickey_name secretkey_name
 if ($opt_b) {
 
 	# get full path names for the public and secret keys
@@ -535,8 +542,14 @@ if ($opt_b) {
 	mkpath(dirname($pubkeyfile)) if ! -d dirname($pubkeyfile);
 	mkpath(dirname($secretkeyfile)) if ! -d dirname($secretkeyfile);
 
+	# the keyid or name should be used for export. This works because
+	# there is only one key. In general all keys are exported
+	# when no keyid or name is given. Luckily only one key exists
+	# export the public key, generated from the secret key
 	my $backuppub = "gpg --output ". $pubkeyfile . " --export --armor";
 	system($backuppub) == 0 or die "$backuppub failed: $?\n";
+	# chmod to 0644
+	chmod (0644, $pubkeyfile);
 
 	my $backupsec = "gpg --output ". $secretkeyfile . " --export-secret-keys --export-options backup";
 	system($backupsec) == 0 or die "$backupsec failed: $?\n";
@@ -547,6 +560,7 @@ if ($opt_b) {
 
 # import public key
 # the key is added to apt so archives can be read.
+########### this must change ###################
 if ($opt_k) {
 	my $command = "apt-key add " . $opt_k;
 	system($command);
