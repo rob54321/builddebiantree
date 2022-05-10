@@ -124,7 +124,7 @@ sub defaultparameter {
 			last;
 		}
 	}
-			
+
 	# hash supplying default arguments to switches
 	my %defparam = ( -b => $pubkeyfile . " " . $secretkeyfile,
 			  -k => $pubkeyfile,
@@ -415,7 +415,7 @@ sub usage {
 }
 
 # default values
-$version = 2.5;
+$version = 2.5.1;
 $configFile = "$ENV{'HOME'}/.bdt.rc";
 $dist = "home";
 @all_arch = ("amd64", "i386", "armhf", "arm64");
@@ -524,7 +524,7 @@ mkpath($workingdir) if ! -d $workingdir;
 foreach my $architem (@all_arch) {
   	my $packagesdir = $debianroot . "/dists/" . $dist . "/main/binary-" . $architem;
    	mkpath($packagesdir) if ! -d $packagesdir;
-}	
+}
 
 # backup up keys
 # public key is written in armor format
@@ -559,17 +559,37 @@ if ($opt_b) {
 }
 
 # import public key
-# the key is added to apt so archives can be read.
+# the key is copied to /etc/apt/keyrings/debhomepubkey.asc
 ########### this must change ###################
 if ($opt_k) {
-	my $command = "apt-key add " . $opt_k;
-	system($command);
+	# if public key does exist print and error message
+	# and abort.
+	if (-f $opt_k) {
+		# make directory /etc/apt/keyrings if it does not exist
+		mkdir "/etc/apt/keyrings" unless -d "/etc/apt/keyrings";
+
+		# copy the file
+		my $command = "cp -fv " . $opt_k . " /etc/apt/keyrings/" . $debhomepub;
+		system($command);
+
+		# set mode to 0644
+		chmod(0644, "/etc/apt/keyrings/" . $debhomepub);
+	} else {
+		# print error mesage
+		print "$opt_k does not exist\n";
+	}
 }    
 
 # import the secret key for signing
 if ($opt_K) {
-	my $command = "gpg --import " . $opt_K;
-	system($command);
+	# if secret key does not exist, print error message
+	if (-f $opt_K) {
+		my $command = "gpg --import " . $opt_K;
+		system($command);
+	} else {
+		# print error message
+		print "$opt_K does not exist\n";
+	}
 }
 
 # list all packages
