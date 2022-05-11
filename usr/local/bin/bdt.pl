@@ -13,7 +13,7 @@ use Cwd;
 use File::Glob;
 
 # global variables
-my ($config_changed, $version, $configFile, $dist, @all_arch, $workingdir, $subversion, $gitrepopath, $debianroot, $debianpool, $pubkeyfile, $secretkeyfile, $sourcefile, $debhomepub, $debhomesec);
+my ($svn, $config_changed, $version, $configFile, $dist, @all_arch, $workingdir, $svndebroot, $gitrepopath, $debianroot, $debianpool, $pubkeyfile, $secretkeyfile, $sourcefile, $debhomepub, $debhomesec);
 our ($opt_a, $opt_h, $opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $opt_x, $opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_d, $opt_l, $opt_R, $opt_k, $opt_K);
 
 # sub to get a source tarball and include it in the debian package for building
@@ -96,68 +96,6 @@ sub getmaxrelease {
 	return $max;
 }
 
-# this sub operates on the list @ARGV
-# all the switches in the defparam hash are checked to see if they have arguments.
-# if they do not have arguments, the default arguments are inserted into ARGV after the switch
-# so that getopts will not fail.
-# no parameters are passed and none are returned.
-
-sub defaultparameter {
-
-	# the pubkey secretkey files have defaults:
-	#    debianroot/pubkey and debianroot/secretkey
-	# the debian root may have changed in the comman line switches with the -x option
-	# command line: bdt.pl -x newdir ...
-	# then the defaults for pubkey and secretkey must change as well
-	# find -x directory in @ARGV if it exists
-	# the following parameter will be debianroot
-	# if the last command line parameter is -x , it has no effect
-	# that's why $i < $#ARGV
-	for (my $i = 0; $i < $#ARGV; $i++) {
-		if ($ARGV[$i] eq "-x") {
-			# reset the pubkey and secret key locations
-			$debianroot = $ARGV[$i+1];
-			# check and remove final / from debianroot
-			$debianroot =~ s/\/$//;
-			$pubkeyfile = $debianroot . "/" . $debhomepub;
-			$secretkeyfile = $debianroot . "/" . $debhomesec;
-			last;
-		}
-	}
-
-	# hash supplying default arguments to switches
-	my %defparam = ( -b => $pubkeyfile . " " . $secretkeyfile,
-			  -k => $pubkeyfile,
-			  -K => $secretkeyfile);
-
-	# for each switch in the defparam hash find it's index and insert default arguments if necessary
-	foreach my $switch (keys(%defparam)) {
-		# find index of position of -*
-		my $i = 0;
-		foreach my $param (@ARGV) {
-			# check for a -b, -K or -k and that it is not the last parameter
-			if ($param eq $switch) {
-				if ($i < $#ARGV) {
-					# -* has been found at $ARGV[$i] and it is not the last parameter
-					# if the next parameter is a switch -something
-					# then -* has no arguments
-					# check if next parameter is a switch
-					if ($ARGV[$i+1] =~ /^-/) {
-						# -* is followed by a switch and is not the last switch
-						# insert the 2 default filenames as a string at index $i+1
-						splice @ARGV, $i+1, 0, $defparam{$switch};
-					}
-				} else {
-					# -* is the last index then the default parameters for -b must be appended
-					splice @ARGV, $i+1, 0, $defparam{$switch}; 
-				}
-			}
-			# increment index counter
-			$i++;
-		}
-	}
-} 
-
 # sub to write config file of parameters that have changed.
 # the hash %config contains the key value pairs of the changed variables
 # all three vars workingdir, subversion and debianroot are written
@@ -167,7 +105,7 @@ sub writeconfig {
     # set up hash to save
     my %config = ();
     $config{"workingdir"} = $workingdir;
-    $config{"subversion"} = $subversion;
+    $config{"subversion"} = $svndebroot;
     $config{"debianroot"} = $debianroot;
     $config{"gitrepopath"}    = $gitrepopath;
         
@@ -190,7 +128,7 @@ sub getconfig {
 		# read file into hash and set values
 		while (<INFILE>) {
 			$workingdir = (split " ", $_)[1] if /workingdir/;
-			$subversion = (split " ", $_)[1] if /subversion/;
+			$svndebroot = (split " ", $_)[1] if /subversion/;
 			$debianroot = (split " ", $_)[1] if /debianroot/;
 			$gitrepopath = (split " ", $_)[1] if /gitrepopath/;
 			}
@@ -391,9 +329,8 @@ sub buildpackage {
 
 sub usage {
     print "usage: builddebiantree [options] filelist\
--b backup public and secret key to : \"pubkeyfile secretkeyfile\" if blank use defaults $pubkeyfile $secretkeyfile\
--k import public key from \"pubkeyfile\" if blank defaults to $pubkeyfile\
--K import secret key from \"secretkeyfile\" if blank defaults to $secretkeyfile\
+-k import public key from subversion to /etc/apt/keyrings\
+-K import secret key from subversion\
 -l list debian packages in subversion\
 -p [\"pkg1 pkg2 ...\"] extract package latest release from subversion -> build -> add to distribution tree\
 -t [\"pkg1 pkg2 ...\"] extract package from trunk/root in subversion, build->add to archive tree\
@@ -402,9 +339,8 @@ sub usage {
 -r [\"dir1 dir2 ...\"] recurse directory for deb packages list containing full paths, build -> add to archive\
 -F force package to be inserted in tree regardless of version\
 -x destination path of archive default: $debianroot\
--a edit /etc/apt/sources to include new debhome\
 -s scan packages to make Packages\
--S full path of subversion default: $subversion\
+-S full path of subversion default: $svndebroot\
 -G full path of git repo, default: $gitrepopath\
 -f full path filename to be added\
 -w set working directory: $workingdir\
@@ -420,7 +356,8 @@ $configFile = "$ENV{'HOME'}/.bdt.rc";
 $dist = "home";
 @all_arch = ("amd64", "i386", "armhf", "arm64");
 $workingdir = "/tmp/debian";
-$subversion = "file:///mnt/svn/debian";
+$svn = "/mnt/svn";
+$svndebroot = "file:///mnt/svn/debian";
 $gitrepopath = "https://github.com/rob54321";
 $debianroot = "/mnt/debhome";
 $sourcefile = undef;
@@ -442,14 +379,8 @@ my $no_arg = @ARGV;
 # check if -b has an argument list after it.
 # if not insert default arguments			
 
-################## testing ##################
-# print "before: @ARGV\n";
-# the defaultparameter() may change debianroot the pubkeyFile and secretkeyFile values
-defaultparameter();
-# print "after:  @ARGV\n";
-
 # get command line options
-getopts('aFVt:k:K:b:hS:lp:r:x:d:sf:w:Rg:G:');
+getopts('FVt:kKhS:lp:r:x:d:sf:w:Rg:G:');
 
 # set up destinaton path of archive if given on command line
 if ($opt_x) {
@@ -459,16 +390,6 @@ if ($opt_x) {
 	        
      # set flag to say a change has been made
      $config_changed = "true";
-}
-
-# edit /etc/apt/sources to include new dehome location
-if ($opt_a) {
-	# sources.list contains
-	# deb file:///mnt/hdd/debhome home main
-	# delete existing line
-	system("sed --in-place=.bak1 -e '/debhome/d' /etc/apt/sources.list");
-	# add current debian root
-	system("sed --in-place=.bak2 -e '\$ a\\deb file://$debianroot home main' /etc/apt/sources.list");
 }
 
 # print version and exit
@@ -492,7 +413,7 @@ if ($opt_G) {
 
 # set subversion respository path
 if ($opt_S) {
-        $subversion = $opt_S;
+        $svndebroot = $opt_S;
         
         # set flag to say a change has been made
         $config_changed = "true";
@@ -526,83 +447,68 @@ foreach my $architem (@all_arch) {
    	mkpath($packagesdir) if ! -d $packagesdir;
 }
 
-# backup up keys
-# public key is written in armor format
-# secret key is binary
-# keys are written to default files if -b has no parameters
-# non default parameters order: publickey_name secretkey_name
-if ($opt_b) {
-
-	# get full path names for the public and secret keys
-	($pubkeyfile, $secretkeyfile) = split /\s+/, $opt_b;
-		
-	# create their directories if they do not exist
-	# print "pubkey is in " . dirname($pubkeyfile) . "\n";
-	# print "secret key is in " . dirname($secretkeyfile) . "\n";
-	mkpath(dirname($pubkeyfile)) if ! -d dirname($pubkeyfile);
-	mkpath(dirname($secretkeyfile)) if ! -d dirname($secretkeyfile);
-
-	# the keyid or name should be used for export. This works because
-	# there is only one key. In general all keys are exported
-	# when no keyid or name is given. Luckily only one key exists
-	# export the public key, generated from the secret key
-	my $backuppub = "gpg --output ". $pubkeyfile . " --export --armor";
-	system($backuppub) == 0 or die "$backuppub failed: $?\n";
-	# chmod to 0644
-	chmod (0644, $pubkeyfile);
-
-	my $backupsec = "gpg --output ". $secretkeyfile . " --export-secret-keys --export-options backup";
-	system($backupsec) == 0 or die "$backupsec failed: $?\n";
-	print "backed up public key to: " . $pubkeyfile . "\n";
-	print "backed up secret key to: " . $secretkeyfile . "\n";
-
-}
-
-# import public key
+# import public key from subversion
 # the key is copied to /etc/apt/keyrings/debhomepubkey.asc
 ########### this must change ###################
 if ($opt_k) {
-	# if public key does exist print and error message
-	# and abort.
-	if (-f $opt_k) {
-		# make directory /etc/apt/keyrings if it does not exist
-		mkdir "/etc/apt/keyrings" unless -d "/etc/apt/keyrings";
+	# if public key is in file:///mnt/svn/root/my-linux/sources/gpg/debhomepubkey.asc
 
-		# copy the file
-		my $command = "cp -fv " . $opt_k . " /etc/apt/keyrings/" . $debhomepub;
-		system($command);
+	# make directory /etc/apt/keyrings if it does not exist
+	mkdir "/etc/apt/keyrings" unless -d "/etc/apt/keyrings";
 
-		# set mode to 0644
-		chmod(0644, "/etc/apt/keyrings/" . $debhomepub);
+	# extract the file from subversion
+	# check that the subversion respository is available
+	if (-d $svn) {
+		my $command = "svn export --force file:///mnt/svn/root/my-linux/sources/gpg/" . $debhomepub . " /etc/apt/keyrings";
+		my $rc = system($command);
+		if ($rc == 0) {
+			# set mode to 0644
+			chmod(0644, "/etc/apt/keyrings/" . $debhomepub);
+		} else {
+			# could not extract file from subversion
+			print "Could not extract file from subversion\n";
+		}
 	} else {
-		# print error mesage
-		print "$opt_k does not exist\n";
+	print "subversion repository not found\n";
 	}
 }    
 
-# import the secret key for signing
+# import the secret key for signing from subversion
 if ($opt_K) {
-	# if secret key does not exist, print error message
-	if (-f $opt_K) {
-		my $command = "gpg --import " . $opt_K;
-		system($command);
+	# check if subversion respository exists
+	if (-d $svn) {
+		# extract key from subversion repository
+		my $command = "svn export --force file:///mnt/svn/root/my-linux/sources/gpg/" . $debhomesec . " /tmp";
+		my $rc = system($command);
+		if ($rc == 0) {
+			#import the key
+			my $command = "gpg --import " . "/tmp/" . $debhomesec;
+			$rc = system($command);
+			# check if imported
+			if ($rc != 0) {
+				print "Could not import secret key\n";
+			}
+		} else {
+			# could not extract file from subversion
+			print "Could not extract file from subversion\n";
+		}
 	} else {
-		# print error message
-		print "$opt_K does not exist\n";
+		# subversion respository not found
+		print "subversion respository not found\n";
 	}
 }
 
 # list all packages
 if ($opt_l) {
-    my $command = "svn -v list " . $subversion;
+    my $command = "svn -v list " . $svndebroot;
     system($command);
 }
 
 # set up subversion export command
-# ensure $subversion is appended by /
-$subversion = $subversion . "/" unless $subversion =~ /\/$/;
+# ensure $svndebroot is appended by /
+$svndebroot = $svndebroot . "/" unless $svndebroot =~ /\/$/;
 
-my $subversioncmd = "svn --force -q export " . $subversion;
+my $subversioncmd = "svn --force -q export " . $svndebroot;
 
 # export the trunk from subversion, build the package and move to the debian tree
 # if there is no trunk directory then export from the project directory
@@ -616,11 +522,11 @@ if ($opt_t) {
 		print "--------------------------------------------------------------------------------\n";
 		# check if trunk exists
 		my $trunk = "/trunk";
-		my $rc = system("svn list " . $subversion . $package . "/trunk > /tmp/svn.log 2>&1");
+		my $rc = system("svn list " . $svndebroot . $package . "/trunk > /tmp/svn.log 2>&1");
 		$trunk = "/" unless $rc == 0;
     		my $command = $subversioncmd . $package . $trunk . " " . $workingdir . "/" . $package . " 1>/tmp/svn.log 2>/tmp/svnerror.log";
 	    	if (system($command) == 0) {
-			print "exported " . $subversion . $package . $trunk . "\n";
+			print "exported " . $svndebroot . $package . $trunk . "\n";
 			# build the package and move it to the tree
 			buildpackage($workingdir, $package, "subversion trunk");
 		} else {
@@ -644,7 +550,7 @@ if ($opt_p) {
 		if ($release) {
 		    	my $command = $subversioncmd . $package . "/release/" . $release . " " . $workingdir . "/" . $package . " 1>/tmp/svn.log 2>/tmp/svnerror.log";
 	    		if (system($command) == 0) {
-				print "exported " . $subversion . $package . "/release/" . $release . "\n";
+				print "exported " . $svndebroot . $package . "/release/" . $release . "\n";
 				# build the package and move it to the tree
 				buildpackage($workingdir, $package, "subversion release");
 			} else {
