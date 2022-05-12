@@ -13,8 +13,8 @@ use Cwd;
 use File::Glob;
 
 # global variables
-my ($svn, $config_changed, $version, $configFile, $dist, @all_arch, $workingdir, $svndebroot, $gitrepopath, $debianroot, $debianpool, $pubkeyfile, $secretkeyfile, $sourcefile, $debhomepub, $debhomesec);
-our ($opt_a, $opt_h, $opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $opt_x, $opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_d, $opt_l, $opt_R, $opt_k, $opt_K);
+my ($svn, $config_changed, $version, $configFile, $dist, @all_arch, $workingdir, $svndebroot, $gitrepopath, $debianroot, $pubkeyfile, $secretkeyfile, $sourcefile, $debhomepub, $debhomesec);
+our ($opt_c, $opt_h, $opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $opt_x, $opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_d, $opt_l, $opt_R, $opt_k, $opt_K);
 
 # sub to get a source tarball and include it in the debian package for building
 # if it is required
@@ -271,7 +271,7 @@ sub movearchivetotree {
 	my $firstchar = substr($packagename, 0, 1);
 
 	# make directory
-	my $destination = $debianpool . "/" . $section . "/" . $firstchar . "/" . $packagename;
+	my $destination = $debianroot . "/pool/" . $section . "/" . $firstchar . "/" . $packagename;
 	mkpath($destination) if ! -d $destination;
 
 	# compare the version of the file being inserted to the existing versions
@@ -401,7 +401,8 @@ sub usage {
 -d [\"pkg1 pkg2 ...\"] extract package from git dev branch, build->add to tree\
 -r [\"dir1 dir2 ...\"] recurse directory for deb packages list containing full paths, build -> add to archive\
 -F force package to be inserted in tree regardless of version\
--x destination path of archive default: $debianroot\
+-x path, to existing respository, default: $debianroot\
+-c path, create a new repository at path
 -s scan packages to make Packages\
 -S full path of subversion default: $svndebroot\
 -G full path of git repo, default: $gitrepopath\
@@ -414,7 +415,7 @@ sub usage {
 }
 
 # default values
-$version = 2.5.1;
+$version = "2.5.1";
 $configFile = "$ENV{'HOME'}/.bdt.rc";
 $dist = "home";
 @all_arch = ("amd64", "i386", "armhf", "arm64");
@@ -449,21 +450,60 @@ defaultparameter();
 # print "after:  @ARGV\n";
 
 # get command line options
-getopts('FVt:k:K:b:hS:lp:r:x:d:sf:w:Rg:G:');
+getopts('c:FVt:kKb:hS:lp:r:x:d:sf:w:Rg:G:');
 
-# set up destinaton path of archive if given on command line
+# create a new repository
+# conflicts with option -x use an existing repository
+if ($opt_c) {
+	# check that -x is not given
+	die "-c and -x are mutually exclusive. Exiting..\n" if $opt_x;
+
+	# the directories must not exist
+	if (-d $opt_c) {
+		# error message and exit
+		print "$opt_c exists: cannot create a repository here\n";
+		exit 0;
+	} else {
+    	# set path to use
+	    $debianroot = $opt_c;
+
+		# strip any tailing / from path
+		$debianroot =~ s/\/$//;
+
+		# create the directories
+        # make Packages directories if they don't exist
+        foreach my $architem (@all_arch) {
+          	my $packagesdir = $debianroot . "/dists/" . $dist . "/main/binary-" . $architem;
+           	mkpath($packagesdir) if ! -d $packagesdir;
+        }
+		mkpath($debianroot . "/pool");
+	}
+	$config_changed = "true";
+}
+
+# set up an existing repository to use
+# the directory structure must exist
 if ($opt_x) {
+	# check that -c is not given
+	die "-c and -x are mutually exclusive. Exiting..\n" if $opt_c;
+
 	$debianroot = $opt_x;
 	# strip any trailing /
 	$debianroot =~ s/\/$//;
-	        
-     # set flag to say a change has been made
-     $config_changed = "true";
+
+	if (! -d $debianroot . "/dists/" . $dist . "/main") {
+		# directory structure incomplete
+		print $debianroot . "/dists/home/main does not exist\n";
+		exit 0;
+	}
+
+	# set flag to say a change has been made
+	$config_changed = "true";
 }
 
 # print version and exit
 if ($opt_V) {
-	print "version $version\n";
+	print "version: " . $version . "\n";
 	exit 0;
 }
 
@@ -488,10 +528,6 @@ if ($opt_S) {
         $config_changed = "true";
 }
 
-# set variables after config is fetched
-# so that command line options can take precedence over config file
-$debianpool = $debianroot . "/pool";
-
 # set working directory if changed
 if ($opt_w) {
     $workingdir = $opt_w;
@@ -503,18 +539,6 @@ if ($opt_w) {
 # save config file if it has changed
 writeconfig if $config_changed;
 
-
-
-#make directories if they do not exist
-mkpath($debianroot) if ! -d $debianroot;
-mkpath($debianpool) if ! -d $debianpool;
-mkpath($workingdir) if ! -d $workingdir;
-
-# make Packages directories if they don't exist
-foreach my $architem (@all_arch) {
-  	my $packagesdir = $debianroot . "/dists/" . $dist . "/main/binary-" . $architem;
-   	mkpath($packagesdir) if ! -d $packagesdir;
-}
 
 # backup up keys
 # public key is written in armor format
