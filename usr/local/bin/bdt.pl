@@ -96,6 +96,68 @@ sub getmaxrelease {
 	return $max;
 }
 
+# this sub operates on the list @ARGV
+# all the switches in the defparam hash are checked to see if they have arguments.
+# if they do not have arguments, the default arguments are inserted into ARGV after the switch
+# so that getopts will not fail.
+# no parameters are passed and none are returned.
+
+sub defaultparameter {
+
+	# the pubkey secretkey files have defaults:
+	#    debianroot/pubkey and debianroot/secretkey
+	# the debian root may have changed in the comman line switches with the -x option
+	# command line: bdt.pl -x newdir ...
+	# then the defaults for pubkey and secretkey must change as well
+	# find -x directory in @ARGV if it exists
+	# the following parameter will be debianroot
+	# if the last command line parameter is -x , it has no effect
+	# that's why $i < $#ARGV
+	for (my $i = 0; $i < $#ARGV; $i++) {
+		if ($ARGV[$i] eq "-x") {
+			# reset the pubkey and secret key locations
+			$debianroot = $ARGV[$i+1];
+			# check and remove final / from debianroot
+			$debianroot =~ s/\/$//;
+			$pubkeyfile = $debianroot . "/" . $debhomepub;
+			$secretkeyfile = $debianroot . "/" . $debhomesec;
+			last;
+		}
+	}
+
+	# hash supplying default arguments to switches
+	my %defparam = ( -b => $pubkeyfile . " " . $secretkeyfile,
+			  -k => $pubkeyfile,
+			  -K => $secretkeyfile);
+
+	# for each switch in the defparam hash find it's index and insert default arguments if necessary
+	foreach my $switch (keys(%defparam)) {
+		# find index of position of -*
+		my $i = 0;
+		foreach my $param (@ARGV) {
+			# check for a -b, -K or -k and that it is not the last parameter
+			if ($param eq $switch) {
+				if ($i < $#ARGV) {
+					# -* has been found at $ARGV[$i] and it is not the last parameter
+					# if the next parameter is a switch -something
+					# then -* has no arguments
+					# check if next parameter is a switch
+					if ($ARGV[$i+1] =~ /^-/) {
+						# -* is followed by a switch and is not the last switch
+						# insert the 2 default filenames as a string at index $i+1
+						splice @ARGV, $i+1, 0, $defparam{$switch};
+					}
+				} else {
+					# -* is the last index then the default parameters for -b must be appended
+					splice @ARGV, $i+1, 0, $defparam{$switch}; 
+				}
+			}
+			# increment index counter
+			$i++;
+		}
+	}
+} 
+
 # sub to write config file of parameters that have changed.
 # the hash %config contains the key value pairs of the changed variables
 # all three vars workingdir, subversion and debianroot are written
@@ -329,6 +391,7 @@ sub buildpackage {
 
 sub usage {
     print "usage: builddebiantree [options] filelist\
+-b backup public and secret key to : \"pubkeyfile secretkeyfile\" if blank use defaults $pubkeyfile $secretkeyfile\
 -k import public key from subversion to /etc/apt/keyrings\
 -K import secret key from subversion\
 -l list debian packages in subversion\
@@ -379,8 +442,14 @@ my $no_arg = @ARGV;
 # check if -b has an argument list after it.
 # if not insert default arguments			
 
+################## testing ##################
+# print "before: @ARGV\n";
+# the defaultparameter() may change debianroot the pubkeyFile and secretkeyFile values
+defaultparameter();
+# print "after:  @ARGV\n";
+
 # get command line options
-getopts('FVt:kKhS:lp:r:x:d:sf:w:Rg:G:');
+getopts('FVt:k:K:b:hS:lp:r:x:d:sf:w:Rg:G:');
 
 # set up destinaton path of archive if given on command line
 if ($opt_x) {
@@ -447,7 +516,39 @@ foreach my $architem (@all_arch) {
    	mkpath($packagesdir) if ! -d $packagesdir;
 }
 
-# import public key from subversion
+# backup up keys
+# public key is written in armor format
+# secret key is binary
+# keys are written to default files if -b has no parameters
+# non default parameters order: publickey_name secretkey_name
+if ($opt_b) {
+
+	# get full path names for the public and secret keys
+	($pubkeyfile, $secretkeyfile) = split /\s+/, $opt_b;
+		
+	# create their directories if they do not exist
+	# print "pubkey is in " . dirname($pubkeyfile) . "\n";
+	# print "secret key is in " . dirname($secretkeyfile) . "\n";
+	mkpath(dirname($pubkeyfile)) if ! -d dirname($pubkeyfile);
+	mkpath(dirname($secretkeyfile)) if ! -d dirname($secretkeyfile);
+
+	# the keyid or name should be used for export. This works because
+	# there is only one key. In general all keys are exported
+	# when no keyid or name is given. Luckily only one key exists
+	# export the public key, generated from the secret key
+	my $backuppub = "gpg --output ". $pubkeyfile . " --export --armor";
+	system($backuppub) == 0 or die "$backuppub failed: $?\n";
+	# chmod to 0644
+	chmod (0644, $pubkeyfile);
+
+	my $backupsec = "gpg --output ". $secretkeyfile . " --export-secret-keys --export-options backup";
+	system($backupsec) == 0 or die "$backupsec failed: $?\n";
+	print "backed up public key to: " . $pubkeyfile . "\n";
+	print "backed up secret key to: " . $secretkeyfile . "\n";
+
+}
+
+# import public key
 # the key is copied to /etc/apt/keyrings/debhomepubkey.asc
 ########### this must change ###################
 if ($opt_k) {
