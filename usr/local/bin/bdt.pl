@@ -76,7 +76,7 @@ sub getmaxrelease {
 	my $package = shift;
 
 	# get all release numbers.
-	my @list = `svn list file:///mnt/svn/debian/$package/release/ 2>/tmp/svnerror.log`;
+	my @list = `svn list file://$svn/debian/$package/release/ 2>/tmp/svnerror.log`;
 
 	# check for error
 	my $errorlog = `cat /tmp/svnerror.log`;
@@ -415,7 +415,7 @@ sub usage {
 }
 
 # default values
-$version = "2.5.2";
+$version = "2.5.3";
 $configFile = "$ENV{'HOME'}/.bdt.rc";
 $dist = "home";
 @all_arch = ("amd64", "i386", "armhf", "arm64");
