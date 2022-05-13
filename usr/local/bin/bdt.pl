@@ -13,7 +13,7 @@ use Cwd;
 use File::Glob;
 
 # global variables
-my ($svn, $config_changed, $version, $configFile, $dist, @all_arch, $workingdir, $svndebroot, $gitrepopath, $debianroot, $pubkeyfile, $secretkeyfile, $sourcefile, $debhomepub, $debhomesec);
+my ($svn, $config_changed, $version, $configFile, $dist, @all_arch, $workingdir, $gitrepopath, $debianroot, $pubkeyfile, $secretkeyfile, $sourcefile, $debhomepub, $debhomesec);
 our ($opt_c, $opt_h, $opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $opt_x, $opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_d, $opt_l, $opt_R, $opt_k, $opt_K);
 
 # sub to get a source tarball and include it in the debian package for building
@@ -167,7 +167,7 @@ sub writeconfig {
     # set up hash to save
     my %config = ();
     $config{"workingdir"} = $workingdir;
-    $config{"subversion"} = $svndebroot;
+    $config{"subversion"} = $svn;
     $config{"debianroot"} = $debianroot;
     $config{"gitrepopath"}    = $gitrepopath;
         
@@ -190,11 +190,11 @@ sub getconfig {
 		# read file into hash and set values
 		while (<INFILE>) {
 			$workingdir = (split " ", $_)[1] if /workingdir/;
-			$svndebroot = (split " ", $_)[1] if /subversion/;
+			$svn = (split " ", $_)[1] if /subversion/;
 			$debianroot = (split " ", $_)[1] if /debianroot/;
 			$gitrepopath = (split " ", $_)[1] if /gitrepopath/;
 			}
-	
+        # set debi	
 		# print a message if any defaults were loaded
 		print "loaded config file\n";
 		close INFILE;
@@ -404,7 +404,7 @@ sub usage {
 -x path, to existing respository, default: $debianroot\
 -c path, create a new repository at path
 -s scan packages to make Packages\
--S full path of subversion default: $svndebroot\
+-S full path of subversion default root: $svn\
 -G full path of git repo, default: $gitrepopath\
 -f full path filename to be added\
 -w set working directory: $workingdir\
@@ -415,13 +415,12 @@ sub usage {
 }
 
 # default values
-$version = "2.5.1";
+$version = "2.5.2";
 $configFile = "$ENV{'HOME'}/.bdt.rc";
 $dist = "home";
 @all_arch = ("amd64", "i386", "armhf", "arm64");
 $workingdir = "/tmp/debian";
 $svn = "/mnt/svn";
-$svndebroot = "file:///mnt/svn/debian";
 $gitrepopath = "https://github.com/rob54321";
 $debianroot = "/mnt/debhome";
 $sourcefile = undef;
@@ -470,6 +469,9 @@ if ($opt_c) {
 		# strip any tailing / from path
 		$debianroot =~ s/\/$//;
 
+        # check if path has leading /
+        $debianroot =~ /^\// or die "The repository path: $debianroot is not absolute\n";
+        
 		# create the directories
         # make Packages directories if they don't exist
         foreach my $architem (@all_arch) {
@@ -477,8 +479,19 @@ if ($opt_c) {
            	mkpath($packagesdir) if ! -d $packagesdir;
         }
 		mkpath($debianroot . "/pool");
+
+        # debhome.sources must be edited with the new url
+        #in debhome.sources: URIs: file:///path/to/repo must be
+        # changed to URIs: file:///newpath/to/newrepo
+        #for sed a file:///mnt/debhome must be used as file:\/\/\/mnt\/debhome
+        # each / must be replaced by \/
+        my $newdebroot = "file://" . $debianroot;
+        $newdebroot =~ s/\//\\\//g;
+        system("sed -i -e 's/^URIs:.*/URIs: $newdebroot/' /etc/apt/sources.list.d/debhome.sources");
+
+        # debian root changed, flag it for writing to config file
+    	$config_changed = "true";
 	}
-	$config_changed = "true";
 }
 
 # set up an existing repository to use
@@ -491,12 +504,23 @@ if ($opt_x) {
 	# strip any trailing /
 	$debianroot =~ s/\/$//;
 
+    # check if path has leading /
+    $debianroot =~ /^\// or die "The repository path: $debianroot is not absolute\n";
+
 	if (! -d $debianroot . "/dists/" . $dist . "/main") {
 		# directory structure incomplete
 		print $debianroot . "/dists/home/main does not exist\n";
 		exit 0;
 	}
 
+    # debhome.sources must be edited with the new url
+    #in debhome.sources: URIs: file:///path/to/repo must be
+    # changed to URIs: file:///newpath/to/newrepo
+    #for sed a file:///mnt/debhome must be used as file:\/\/\/mnt\/debhome
+    # each / must be replaced by \/
+    my $newdebroot = "file://" . $debianroot;
+    $newdebroot =~ s/\//\\\//g;
+    system("sed -i -e 's/^URIs:.*/URIs: $newdebroot/' /etc/apt/sources.list.d/debhome.sources");
 	# set flag to say a change has been made
 	$config_changed = "true";
 }
@@ -508,8 +532,28 @@ if ($opt_V) {
 }
 
 # reset by deleting config file and exit
+# subversion , debhome repository, working dir, git repo must be reset
 if ($opt_R) {
 	unlink($configFile);
+
+    #debhome.source must be reset to the default
+    # extract debhome.sourses from subversion
+    # the file is architecture dependent
+    my $arch = `arch`;
+    chomp($arch);
+    
+    if ($arch eq "aarch64") {
+        # extract for arm64
+        my $rc = system("svn export --force file://" . $svn . "/root/my-linux/sources/arm64/debhome.sources /etc/apt/sources.list.d");
+        die("Could not extract debhome.sources from $svn/root/my-linux/sources/arm64\n") unless $rc == 0;
+    } elsif ($arch eq "x86_64") {
+        # extract for amd64
+        my $rc = system("svn export --force file://" . $svn . "/root/my-linux/sources/amd64/debhome.sources /etc/apt/sources.list.d");
+        die("Could not extract debhome.sources from $svn/root/my-linux/sources/amd64\n") unless $rc == 0;
+    } else {
+        # unknown architecture
+        die("$arch is and unknown architecture\n");
+    }
 	print "deleted config file\n";
 	exit 0;
 }
@@ -520,10 +564,12 @@ if ($opt_G) {
 	$config_changed = "true";
 }
 
-# set subversion respository path
+# set subversion respository root path
 if ($opt_S) {
-        $svndebroot = $opt_S;
-        
+        $svn = $opt_S;
+        # strip trailing /
+        $svn =~ s/\/$//;
+
         # set flag to say a change has been made
         $config_changed = "true";
 }
@@ -625,15 +671,12 @@ if ($opt_K) {
 
 # list all packages
 if ($opt_l) {
-    my $command = "svn -v list " . $svndebroot;
+    my $command = "svn -v list file://" . $svn . "/debian";
     system($command);
 }
 
 # set up subversion export command
-# ensure $svndebroot is appended by /
-$svndebroot = $svndebroot . "/" unless $svndebroot =~ /\/$/;
-
-my $subversioncmd = "svn --force -q export " . $svndebroot;
+my $subversioncmd = "svn --force -q export file://" . $svn . "/debian/";
 
 # export the trunk from subversion, build the package and move to the debian tree
 # if there is no trunk directory then export from the project directory
@@ -647,11 +690,11 @@ if ($opt_t) {
 		print "--------------------------------------------------------------------------------\n";
 		# check if trunk exists
 		my $trunk = "/trunk";
-		my $rc = system("svn list " . $svndebroot . $package . "/trunk > /tmp/svn.log 2>&1");
+		my $rc = system("svn list file://" . $svn . "/debian/" . $package . "/trunk > /tmp/svn.log 2>&1");
 		$trunk = "/" unless $rc == 0;
     		my $command = $subversioncmd . $package . $trunk . " " . $workingdir . "/" . $package . " 1>/tmp/svn.log 2>/tmp/svnerror.log";
 	    	if (system($command) == 0) {
-			print "exported " . $svndebroot . $package . $trunk . "\n";
+			print "exported file://" . $svn . "/debian/" . $package . $trunk . "\n";
 			# build the package and move it to the tree
 			buildpackage($workingdir, $package, "subversion trunk");
 		} else {
@@ -675,7 +718,7 @@ if ($opt_p) {
 		if ($release) {
 		    	my $command = $subversioncmd . $package . "/release/" . $release . " " . $workingdir . "/" . $package . " 1>/tmp/svn.log 2>/tmp/svnerror.log";
 	    		if (system($command) == 0) {
-				print "exported " . $svndebroot . $package . "/release/" . $release . "\n";
+				print "exported file://" . $svn . "/debian/" . $package . "/release/" . $release . "\n";
 				# build the package and move it to the tree
 				buildpackage($workingdir, $package, "subversion release");
 			} else {
