@@ -501,7 +501,7 @@ if ($opt_x) {
 
 	$debianroot = $opt_x;
 	# strip any trailing /
-	chop($debianroot);
+	$debianroot =~ s/\/$//;
 
     # check if path has leading /
     $debianroot =~ /^\// or die "The repository path: $debianroot is not absolute\n";
@@ -570,7 +570,7 @@ if ($opt_G) {
 if ($opt_S) {
         $svn = $opt_S;
         # strip trailing /
-        chop($svn);
+        $svn =~ s/\/$//;
 
         # set flag to say a change has been made
         $config_changed = "true";
