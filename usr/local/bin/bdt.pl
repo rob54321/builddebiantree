@@ -529,7 +529,7 @@ if ($opt_V) {
 	# print the installed version from dpkg-query
 	my $string = `dpkg-query -W builddebiantree`;
 	my ($name, $version) = split /\s+/,$string;
-	print "Version: $version\n";
+	print "Version: $version (installed version)\n";
 	exit 0;
 }
 
