@@ -88,8 +88,10 @@ sub getmaxrelease {
 	chomp(@list);
 	chop (@list);
 
-	my $max = 0;
+	my $max = "0";
 	# find the maximum version
+	# as string comparison must be done
+	# as version are of the form 2:2.5.1-2.6.4
 	foreach my $ver (@list) {
 		$max = $ver if $max lt $ver;
 	}
@@ -410,12 +412,9 @@ sub usage {
 -w set working directory: $workingdir\
 -V print version and exit\
 -R reset back to defaults and exit\n";
-    exit(0);
-
 }
 
 # default values
-$version = "2.5.3";
 $configFile = "$ENV{'HOME'}/.bdt.rc";
 $dist = "home";
 @all_arch = ("amd64", "i386", "armhf", "arm64");
@@ -502,7 +501,7 @@ if ($opt_x) {
 
 	$debianroot = $opt_x;
 	# strip any trailing /
-	$debianroot =~ s/\/$//;
+	chop($debianroot);
 
     # check if path has leading /
     $debianroot =~ /^\// or die "The repository path: $debianroot is not absolute\n";
@@ -527,7 +526,10 @@ if ($opt_x) {
 
 # print version and exit
 if ($opt_V) {
-	print "version: " . $version . "\n";
+	# print the installed version from dpkg-query
+	my $string = `dpkg-query -W builddebiantree`;
+	my ($name, $version) = split /\s+/,$string;
+	print "Version: $version\n";
 	exit 0;
 }
 
@@ -568,7 +570,7 @@ if ($opt_G) {
 if ($opt_S) {
         $svn = $opt_S;
         # strip trailing /
-        $svn =~ s/\/$//;
+        chop($svn);
 
         # set flag to say a change has been made
         $config_changed = "true";
