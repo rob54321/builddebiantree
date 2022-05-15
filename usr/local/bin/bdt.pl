@@ -425,6 +425,9 @@ $debianroot = "/mnt/debhome";
 $sourcefile = undef;
 $debhomepub = "debhomepubkey.asc";
 $debhomesec = "debhomeseckey.gpg";
+# used for the -r option to work with relative paths
+# store the current working directory absolute path
+my $initialdir = cwd;
 
 # get config file now, so that command line options
 # can override them if necessary
@@ -810,6 +813,15 @@ if ($opt_r) {
 	print "\n";
 	print "--------------------------------------------------------------------------------\n";
 	foreach my $directory (@directory_list) {
+	        # each directory may be an absolute or relative path
+	        # absolute paths start with /
+	        # relative paths do not start with /
+	        # relative paths are relative to the original starting directory
+	        # convert all relative paths to absolute paths
+	        $directory = $initialdir . "/" . $directory unless $directory =~ /^\//;
+
+	        # check each absolute dir exists
+	        print "dir: $directory\n";
     		die "cannot open $directory" if ! -d $directory;
 
 	    	# recurse down dirs and move all
