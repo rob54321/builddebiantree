@@ -247,8 +247,7 @@ sub getpackagefield {
 	}
 }
 
-# movearchivetotree:
-# first parameter is full path to the archive
+# first parameter packagename.deb
 # second parameter is status = debpackage | subversion | git
 # debpackage means the archive is a debpackage, rename it to standard form and copy to archive
 # subversion means the archive was exported from subversion, built, renamed to standard form and moved to archive
@@ -256,16 +255,16 @@ sub getpackagefield {
 # destination = debianpool / section / firstchar of archive / packagename
 # any architecture is moved.
 sub movearchivetotree {
-	my($origarchive, $status) = @_;
+	my($debarchive, $status) = @_;
 
 	# get section, name, version and architecture to create package directory
-	my $section = getpackagefield($origarchive, "Section");
+	my $section = getpackagefield($debarchive, "Section");
 	return unless $section;
-	my $packagename = getpackagefield($origarchive, "Package");
+	my $packagename = getpackagefield($debarchive, "Package");
 	return unless $packagename;
-	my $version = getpackagefield($origarchive, "Version");
+	my $version = getpackagefield($debarchive, "Version");
 	return unless $version;
-	my $architecture = getpackagefield($origarchive, "Architecture");
+	my $architecture = getpackagefield($debarchive, "Architecture");
 	return unless $architecture;
 
 	# make dir under pool/firstletter of packagename/packagename
@@ -301,36 +300,41 @@ sub movearchivetotree {
 	# Insert file to repository if the new version > than the version in the repository
 	chdir $currentdir;
 	# check if version > max version unless force option is given
-
-	# archive name has changed to standard name
-	my $archive = $packagename . "_". $version . "_" . $architecture . ".deb";
+	# create a standard archive name for the deb file
+	# packagename_version_architecture
+	my $debstdarchive = $packagename . "_". $version . "_" . $architecture . ".deb";
 
 	if ($opt_F or ($version gt $max_version)) {
 		# delete all previous versions of files in the repository with the same packagename,
 		# architecture in the destination
 		system("rm -f " . $destination . "/" . $packagename . "*" . $architecture . ".deb");
-	
 
-		# make standard name and move
-		system("dpkg-name -o " . $origarchive . " > /dev/null 2>&1");
-
+		# the deb file from subversion or git
+		# will be named packagename.deb
+		# it must be renamed to packagename_version_architecture.deb
+		# an existing deb file must be renamed to standard form
+		# ie packagename_version_architecture.deb
+		rename $debarchive, $debstdarchive;
+		
 		#display message for move debpackage or build and move
 		if ($status eq "debpackage") {
-			# original file was a debpackage copy it
-			print "debpackage: ", $origarchive, " -> $destination/$archive\n";
-			system ("cp " . $archive . " " . $destination);
+
+			# original was a deb archive, cp it
+			print "debpackage: ", $debarchive, " -> $destination/$debstdarchive\n";
+			system ("cp " . $debstdarchive . " " . $destination);
 		} else {
-			# original file was extracted from subversion or git build it and move it
-			print "$status:  ", $origarchive, " -> $destination/$archive\n";
-			system ("mv " . $archive . " " . $destination);
+			# original file was extracted from subversion
+			# buildpackage() would have renamed the file with a standard name
+			print "$status:  ", $debarchive, " -> $destination/$debstdarchive\n";
+			system ("mv " . $debstdarchive . " " . $destination);
 		}
 		# chmod of file in archive to 0666
-		my $pname = $destination . "/" . $archive;
+		my $pname = $destination . "/" . $debstdarchive;
 		chmod (0666, $pname);
 	} else {
 		# version of new file < existing file
 		# file is not inserted
-		print "$archive not inserted $version <= $max_version\n";
+		print "$debstdarchive not inserted $version <= $max_version\n";
 	}
 }
 
@@ -376,14 +380,13 @@ sub buildpackage {
 		print "$package: $sourcefile defined but not found: skipping\n";
 		return;
 	}
-	# build the package
+	# build the package to packagename.deb
+	# use deb package name to get full name
 	my $rc = system("dpkg-deb -b -Z gzip " . $package . " >/dev/null");
 	# check if build was successful
 	if ($rc == 0) {
-		# debian package name = package.deb
+		# the output of dpkg-deb -b is package.deb
 		my $debpackage = $package . ".deb";
-
-		# move it to the tree
 		movearchivetotree($debpackage, $packagervs);
 	} else {
 		# control file in DEBIAN directory is not valid or does not exist
@@ -465,15 +468,15 @@ if ($opt_c) {
 		print "$opt_c exists: cannot create a repository here\n";
 		exit 0;
 	} else {
-    	# set path to use
-	    $debianroot = $opt_c;
+		# set path to use
+		$debianroot = $opt_c;
 
 		# strip any tailing / from path
 		$debianroot =~ s/\/$//;
 
-        # check if path has leading /
-        $debianroot =~ /^\// or die "The repository path: $debianroot is not absolute\n";
-        
+		# check if path has leading /
+		$debianroot =~ /^\// or die "The repository path: $debianroot is not absolute\n";
+
 		# create the directories
         # make Packages directories if they don't exist
         foreach my $architem (@all_arch) {
