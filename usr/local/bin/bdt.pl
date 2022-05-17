@@ -334,7 +334,7 @@ sub movearchivetotree {
 	} else {
 		# version of new file < existing file
 		# file is not inserted
-		print "$debstdarchive not inserted $version <= $max_version\n";
+		print "$debarchive = $debstdarchive not inserted $version <= $max_version\n";
 	}
 }
 
