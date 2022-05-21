@@ -257,6 +257,9 @@ sub getpackagefield {
 sub movearchivetotree {
 	my($debarchive, $status) = @_;
 
+	# keep current directory
+	my $currentdir = cwd;
+	
 	# get section, name, version and architecture to create package directory
 	my $section = getpackagefield($debarchive, "Section");
 	return unless $section;
@@ -279,7 +282,6 @@ sub movearchivetotree {
 	# in the destination directory for the same architecture.
 	# Do not insert an older version, delete and older version in the repository
 	# get version of package in the archive
-	my $currentdir = cwd;
 	chdir $destination;
 	# make a list of all files with same package name and architecture
 	my @repository_files = glob("$packagename*$architecture.deb");
@@ -361,6 +363,9 @@ sub buildpackage {
 	# get parameters
 	my($workdir, $package, $packagervs) = @_;
 
+	# keep current directory
+	my $currentdir = cwd;
+	
 	# change to working directory
 	chdir $workdir;
 
@@ -392,6 +397,8 @@ sub buildpackage {
 		# control file in DEBIAN directory is not valid or does not exist
 		print "control file of $package is not valid\n";
 	}
+	# restore current directory
+	chdir $currentdir;
 }
 
 sub usage {
@@ -841,6 +848,16 @@ if ($opt_f) {
 print "\n";
 print "--------------------------------------------------------------------------------\n";
 
+# build and add a debian source package to the archive
+# the debian source package is not under revision control
+if ($opt_B) {
+	# strip a trailing /
+	$opt_B =~ s/\/$//;;
+	# check that
+	die ("There is no package source at $opt_B\n") unless -f $opt_B . "/DEBIAN/control";
+
+	
+	
 # scan pool and make Packages file
 if ($opt_s) {
 
