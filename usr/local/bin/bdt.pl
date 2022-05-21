@@ -14,7 +14,7 @@ use File::Glob;
 
 # global variables
 my ($svn, $config_changed, $version, $configFile, $dist, @all_arch, $workingdir, $gitrepopath, $debianroot, $pubkeyfile, $secretkeyfile, $sourcefile, $debhomepub, $debhomesec);
-our ($opt_c, $opt_h, $opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $opt_x, $opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_d, $opt_l, $opt_R, $opt_k, $opt_K);
+our ($opt_B, $opt_c, $opt_h, $opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $opt_x, $opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_d, $opt_l, $opt_R, $opt_k, $opt_K);
 
 # sub to get a source tarball and include it in the debian package for building
 # if it is required
@@ -362,7 +362,6 @@ sub add_archive {
 sub buildpackage {
 	# get parameters
 	my($workdir, $package, $packagervs) = @_;
-
 	# keep current directory
 	my $currentdir = cwd;
 	
@@ -379,7 +378,7 @@ sub buildpackage {
 	my $gsrc = getsource($package);
 	if ($gsrc == 1) {
 		print "$package: $sourcefile included\n"
-	
+
 	} elsif ($gsrc == 5) {
 		# source and version defined but file not found
 		print "$package: $sourcefile defined but not found: skipping\n";
@@ -412,6 +411,7 @@ sub usage {
 -g [\"pkg1 pkg2 ...\"] extract package from git project branch, build->add to tree\
 -d [\"pkg1 pkg2 ...\"] extract package from git dev branch, build->add to tree\
 -r [\"dir1 dir2 ...\"] recurse directory for deb packages list containing full paths, build -> add to archive\
+-B [path to debian source tree] builds a debian package and adds to archive\
 -F force package to be inserted in tree regardless of version\
 -x path, to existing respository, default: $debianroot\
 -c path, create a new repository at path
@@ -461,7 +461,7 @@ defaultparameter();
 # print "after:  @ARGV\n";
 
 # get command line options
-getopts('c:FVt:kKb:hS:lp:r:x:d:sf:w:Rg:G:');
+getopts('B:c:FVt:kKb:hS:lp:r:x:d:sf:w:Rg:G:');
 
 # create a new repository
 # conflicts with option -x use an existing repository
@@ -723,6 +723,7 @@ if ($opt_t) {
 if ($opt_p) {
 	# empty working dir incase
 	removeworkingdir;
+
 	# checkout each package in list $opt_p is a space separated string
 	my @package_list = split /\s+/, $opt_p;
 	foreach my $package (@package_list) {
@@ -850,14 +851,35 @@ print "-------------------------------------------------------------------------
 
 # build and add a debian source package to the archive
 # the debian source package is not under revision control
+# the directory $opt_B will be /home/robert/package
+# the debian source tree is under the package directory
+# of for relative paths $opt_B may just be the package directory
+# in the current directory
 if ($opt_B) {
+	# empty working directory
+	removeworkingdir;
+
 	# strip a trailing /
 	$opt_B =~ s/\/$//;;
-	# check that
+	
+	# make opt_B an absolute directory if it is not
+	$opt_B = $initialdir . "/" . $opt_B unless $opt_B =~ /^\//;
+
+	# check that there is a DEBIAN control file
 	die ("There is no package source at $opt_B\n") unless -f $opt_B . "/DEBIAN/control";
 
-	
-	
+	# setup package name
+	my $package = basename($opt_B);
+
+	# copy the the tree to the working directory
+	mkpath($workingdir . "/" . $package) unless -d $workingdir . "/" . $package;
+	system("cp -a $opt_B $workingdir/");
+
+	# build the package
+	buildpackage($workingdir, $package, "debpackage");
+
+}
+
 # scan pool and make Packages file
 if ($opt_s) {
 
