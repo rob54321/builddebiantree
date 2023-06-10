@@ -749,6 +749,7 @@ if ($opt_p) {
 
 # export a package from git, project branch, build it and insert into the repository
 # export to depth 1 and delete .git directory
+# this options assumes the branch name is the same as the package name.
 if ($opt_g) {
     	removeworkingdir;
 	# checkout each package in list $opt_t is a space separated string
