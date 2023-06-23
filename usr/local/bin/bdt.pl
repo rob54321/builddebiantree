@@ -400,6 +400,71 @@ sub buildpackage {
 	chdir $currentdir;
 }
 
+# new subs for the option -n -- newest from git
+# sub to clone a git project
+# so that the latest branch can be determined
+# the option --sort=-committerdate requires
+# all objects to be cloned so depth=1 and --single-branch
+# cannot be used.
+# gitclone (targetdirectory)
+sub gitclone {
+	# get parameters
+	my($directory) = $_[0];
+
+	# project name is project_name.git
+	# remove directory
+	system("rm -rf $directory");
+	
+	# pname = project_name
+	# project name was passed as a command line parameter
+	my $pname = $ARGV[0];
+	# check a repository name was given on the command line.
+	# initialise-linux.git is given as initialise-linux
+	die "No project name given on command line\n" unless $ARGV[0];
+	my $rc = system("git clone -n -v https://github.com/rob54321/$pname" . ".git" . " $directory");
+	# die if unsuccessful
+	die "Error cloning $pname.git:$!\n" unless $rc == 0;
+}
+
+# sub to get the remote name
+# this sub can only be executed in the git cloned directory
+sub getremote {
+	my @remotelist = `git remote`;
+	chomp (@remotelist);
+	print "remote list: @remotelist\n";
+	return $remotelist[0];
+}
+
+
+# sub to determine latest commit of latest branch
+# and checkout the latest branch
+# sub to get latest branch with latest commit checked out
+# lbranch no parameters passed or returned
+# this sub can only be executed in the git cloned directory
+sub lbranch { 
+	# get remote name
+	my $rname = getremote;
+	
+	# get heads and sort
+	# line 0 will be the latest head, line 1 next etc
+	my @line = `git ls-remote --heads --sort=-committerdate $rname`;
+
+	# each line contains "commit refs/heads/branch_name"
+	# the first line will have the newest date
+	# get branch latest branch, it will appear first on the list
+	my $lbranch = (split (/\//, $line[0]))[2];
+	chomp($lbranch);
+
+	# checkout latest branch so software is available to place in the linux repo
+	my $rc = system("git checkout $lbranch");
+	die ("Could not checkout $lbranch from $rname:$!\n") unless $rc == 0;
+	
+	# print remote name and latest branch
+	print "remote: $rname\t latest branch: $lbranch\n";
+}
+
+
+
 sub usage {
     print "usage: builddebiantree [options] filelist\
 -b backup public and secret key to : \"pubkeyfile secretkeyfile\" if blank use defaults $pubkeyfile $secretkeyfile\
@@ -576,6 +641,9 @@ if ($opt_R) {
 # set the git repository path if changed
 if ($opt_G) {
 	$gitrepopath = $opt_G;
+	# add a final / to gitrepopath if one does not exist
+	$gitrepopath = $gitrepopath . "/" unless $gitrepopath =~ /\/$/;
+	
 	$config_changed = "true";
 }
 
@@ -756,9 +824,6 @@ if ($opt_g) {
 	my @package_list = split /\s+/, $opt_g;
 	my $gitclone = "git clone --single-branch --depth 1 --no-tags ";
 
-	# add a final / to gitrepopath if one does not exist
-	$gitrepopath = $gitrepopath . "/" unless $gitrepopath =~ /\/$/;
-	
 	foreach my $package (@package_list) {
 		print "\n";
 		print "--------------------------------------------------------------------------------\n";
@@ -791,9 +856,6 @@ if ($opt_d) {
 	my @package_list = split /\s+/, $opt_d;
 	my $gitclone = "git clone --single-branch --depth 1 --no-tags ";
 
-	# add a final / to gitrepopath if one does not exist
-	$gitrepopath = $gitrepopath . "/" unless $gitrepopath =~ /\/$/;
-	
 	foreach my $package (@package_list) {
 		print "\n";
 		print "--------------------------------------------------------------------------------\n";
@@ -817,6 +879,39 @@ if ($opt_d) {
 		}
 	}
 }
+
+# export the latest package from git, irrespective of which branch it is on, build it and insert into the repository
+# this is the -n newest option
+if ($opt_n) {
+    	removeworkingdir;
+	# checkout each package in list $opt_t is a space separated string
+	my @package_list = split /\s+/, $opt_d;
+	my $gitclone = "git clone --single-branch --depth 1 --no-tags ";
+
+	foreach my $package (@package_list) {
+		print "\n";
+		print "--------------------------------------------------------------------------------\n";
+		my $projectrepo = $gitrepopath . "$package" . "\.git";
+    		my $command = $gitclone . "-b dev " . $projectrepo . " " . $workingdir . "/" . $package . " 1>/tmp/git.log 2>/tmp/giterror.log";
+
+	    	if (system($command) == 0) {
+			print "cloned: " . $gitrepopath . $package . "/.git -- dev branch\n";
+	    		# remove .git directory
+    			system("rm -rf " . $workingdir . "/" . $package . "/.git");
+
+    			# remove the readme file and .gitignore
+    			unlink "$workingdir" . "/" . "$package" . "/README.md";
+    			unlink "$workingdir" . "/" . "$package" . "/.gitignore";
+    			
+			# build the package and move it to the tree
+			buildpackage($workingdir, $package, "git");
+		} else {
+			my $error = `cat /tmp/giterror.log`;
+			print "$error\n";
+		}
+	}
+}
+
 # process a dir recursively and copy all debian archives to tree
 # search each dir for DEBIAN/control. If found build package.
 # the opt_r can be a space separated directory list
