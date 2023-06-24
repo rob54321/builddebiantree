@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+w#!/usr/bin/perl
 use strict;
 use warnings;
 
@@ -13,7 +13,7 @@ use Cwd;
 use File::Glob;
 
 # global variables
-my ($svn, $config_changed, $version, $configFile, $dist, @all_arch, $workingdir, $gitrepopath, $debianroot, $pubkeyfile, $secretkeyfile, $sourcefile, $debhomepub, $debhomesec);
+my ($svn, $config_changed, $version, $configFile, $dist, @all_arch, $workingdir, $gitremotepath, $debianroot, $pubkeyfile, $secretkeyfile, $sourcefile, $debhomepub, $debhomesec);
 our ($opt_B, $opt_c, $opt_h, $opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $opt_x, $opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_d, $opt_l, $opt_R, $opt_k, $opt_K);
 
 # sub to get a source tarball and include it in the debian package for building
@@ -171,7 +171,7 @@ sub writeconfig {
     $config{"workingdir"} = $workingdir;
     $config{"subversion"} = $svn;
     $config{"debianroot"} = $debianroot;
-    $config{"gitrepopath"}    = $gitrepopath;
+    $config{"gitrepopath"}    = $gitremotepath;
         
     open OUTFILE, ">$configFile";
     foreach my $item (keys (%config)) {
@@ -194,7 +194,7 @@ sub getconfig {
 			$workingdir = (split " ", $_)[1] if /workingdir/;
 			$svn = (split " ", $_)[1] if /subversion/;
 			$debianroot = (split " ", $_)[1] if /debianroot/;
-			$gitrepopath = (split " ", $_)[1] if /gitrepopath/;
+			$gitremotepath = (split " ", $_)[1] if /gitrepopath/;
 			}
         # set debi	
 		# print a message if any defaults were loaded
@@ -406,22 +406,17 @@ sub buildpackage {
 # the option --sort=-committerdate requires
 # all objects to be cloned so depth=1 and --single-branch
 # cannot be used.
-# gitclone (targetdirectory)
+# gitclone (package_name, targetdirectory)
 sub gitclone {
 	# get parameters
-	my($directory) = $_[0];
+	my($pname, $directory) = @_;
 
 	# project name is project_name.git
+	# project_name.git is the repository name
 	# remove directory
 	system("rm -rf $directory");
 	
-	# pname = project_name
-	# project name was passed as a command line parameter
-	my $pname = $ARGV[0];
-	# check a repository name was given on the command line.
-	# initialise-linux.git is given as initialise-linux
-	die "No project name given on command line\n" unless $ARGV[0];
-	my $rc = system("git clone -n -v https://github.com/rob54321/$pname" . ".git" . " $directory");
+	my $rc = system("git clone -n -v $gitremotepath" . "$pname" . ".git" . " $directory");
 	# die if unsuccessful
 	die "Error cloning $pname.git:$!\n" unless $rc == 0;
 }
@@ -475,6 +470,7 @@ sub usage {
 -t [\"pkg1 pkg2 ...\"] extract package from trunk/root in subversion, build->add to archive tree\
 -g [\"pkg1 pkg2 ...\"] extract package from git project branch, build->add to tree\
 -d [\"pkg1 pkg2 ...\"] extract package from git dev branch, build->add to tree\
+-n [\"pkg1 pkg2 ...\"] extract package from git newest branch, build->add to tree\
 -r [\"dir1 dir2 ...\"] recurse directory for deb packages list containing full paths, build -> add to archive\
 -B [path to debian source tree] builds a debian package and adds to archive\
 -F force package to be inserted in tree regardless of version\
@@ -482,7 +478,7 @@ sub usage {
 -c path, create a new repository at path
 -s scan packages to make Packages\
 -S full path of subversion default root: $svn\
--G full path of git repo, default: $gitrepopath\
+-G full path of git repo, default: $gitremotepath
 -f full path filename to be added\
 -w set working directory: $workingdir\
 -V print version and exit\
@@ -493,9 +489,17 @@ sub usage {
 $configFile = "$ENV{'HOME'}/.bdt.rc";
 $dist = "home";
 @all_arch = ("amd64", "i386", "armhf", "arm64");
+
+# full path to cloned project is
+# $workingdir/$package_name
 $workingdir = "/tmp/debian";
+
 $svn = "/mnt/svn";
-$gitrepopath = "https://github.com/rob54321";
+
+# the git remote path must be
+# appended by /
+$gitremotepath = "https://github.com/rob54321/";
+
 $debianroot = "/mnt/debhome";
 $sourcefile = undef;
 $debhomepub = "debhomepubkey.asc";
@@ -526,7 +530,7 @@ defaultparameter();
 # print "after:  @ARGV\n";
 
 # get command line options
-getopts('B:c:FVt:kKb:hS:lp:r:x:d:sf:w:Rg:G:');
+getopts('n:B:c:FVt:kKb:hS:lp:r:x:d:sf:w:Rg:G:');
 
 # create a new repository
 # conflicts with option -x use an existing repository
@@ -640,9 +644,9 @@ if ($opt_R) {
 
 # set the git repository path if changed
 if ($opt_G) {
-	$gitrepopath = $opt_G;
+	$gitremotepath = $opt_G;
 	# add a final / to gitrepopath if one does not exist
-	$gitrepopath = $gitrepopath . "/" unless $gitrepopath =~ /\/$/;
+	$gitremotepath = $gitremotepath . "/" unless $gitremotepath =~ /\/$/;
 	
 	$config_changed = "true";
 }
@@ -827,11 +831,11 @@ if ($opt_g) {
 	foreach my $package (@package_list) {
 		print "\n";
 		print "--------------------------------------------------------------------------------\n";
-		my $projectrepo = $gitrepopath . "$package" . "\.git";
+		my $projectrepo = $gitremotepath . "$package" . "\.git";
     		my $command = $gitclone . "-b " . $package . " " . $projectrepo . " " . $workingdir . "/" . $package . " 1>/tmp/git.log 2>/tmp/giterror.log";
 
 	    	if (system($command) == 0) {
-			print "cloned: " . $gitrepopath . $package . "/.git" . " -- " . $package . " branch\n";
+			print "cloned: " . $gitremotepath . $package . "/.git" . " -- " . $package . " branch\n";
 	    		# remove .git directory
     			system("rm -rf " . $workingdir . "/" . $package . "/.git");
 
@@ -859,11 +863,11 @@ if ($opt_d) {
 	foreach my $package (@package_list) {
 		print "\n";
 		print "--------------------------------------------------------------------------------\n";
-		my $projectrepo = $gitrepopath . "$package" . "\.git";
+		my $projectrepo = $gitremotepath . "$package" . "\.git";
     		my $command = $gitclone . "-b dev " . $projectrepo . " " . $workingdir . "/" . $package . " 1>/tmp/git.log 2>/tmp/giterror.log";
 
 	    	if (system($command) == 0) {
-			print "cloned: " . $gitrepopath . $package . "/.git -- dev branch\n";
+			print "cloned: " . $gitremotepath . $package . "/.git -- dev branch\n";
 	    		# remove .git directory
     			system("rm -rf " . $workingdir . "/" . $package . "/.git");
 
@@ -885,17 +889,16 @@ if ($opt_d) {
 if ($opt_n) {
     	removeworkingdir;
 	# checkout each package in list $opt_t is a space separated string
-	my @package_list = split /\s+/, $opt_d;
-	my $gitclone = "git clone --single-branch --depth 1 --no-tags ";
+	my @package_list = split /\s+/, $opt_n;
 
 	foreach my $package (@package_list) {
 		print "\n";
 		print "--------------------------------------------------------------------------------\n";
-		my $projectrepo = $gitrepopath . "$package" . "\.git";
+		my $projectrepo = $gitremotepath . "$package" . "\.git";
     		my $command = $gitclone . "-b dev " . $projectrepo . " " . $workingdir . "/" . $package . " 1>/tmp/git.log 2>/tmp/giterror.log";
 
 	    	if (system($command) == 0) {
-			print "cloned: " . $gitrepopath . $package . "/.git -- dev branch\n";
+			print "cloned: " . $gitremotepath . $package . "/.git -- dev branch\n";
 	    		# remove .git directory
     			system("rm -rf " . $workingdir . "/" . $package . "/.git");
 
