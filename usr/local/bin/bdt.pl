@@ -276,7 +276,7 @@ sub movearchivetotree {
 
 	# make directory
 	my $destination = $debianroot . "/pool/" . $section . "/" . $firstchar . "/" . $packagename;
-	mkpath($destination) if ! -d $destination;
+	mkpath($destination);
 
 	# compare the version of the file being inserted to the existing versions
 	# in the destination directory for the same architecture.
@@ -531,6 +531,21 @@ defaultparameter();
 
 # get command line options
 getopts('n:B:c:FVt:kKb:hS:lp:r:x:d:sf:w:Rg:G:');
+
+
+# if no options or h option print usage
+
+if ($opt_h or ($no_arg == 0)) {
+	usage;
+	# exit
+	exit 0;
+}
+# if -c and -x are not given then use
+# the default repository. Make sure it is accessible
+if ( ! $opt_c and ! $opt_x ) {
+	# check that the default repository is accessible
+	die "Cannot access repository at $debianroot" . "/dists/home/main: $!" unless -d $debianroot . "/dists/home/main";
+}
 
 # create a new repository
 # conflicts with option -x use an existing repository
@@ -1010,12 +1025,4 @@ if ($opt_s) {
 
 	# restore original directory
 	chdir $currentdir;
-}
-
-# if no options or h option print usage
-
-if ($opt_h or ($no_arg == 0)) {
-	usage;
-	# exit
-	exit 0;
 }
