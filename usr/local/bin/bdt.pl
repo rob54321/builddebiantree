@@ -1,4 +1,4 @@
-w#!/usr/bin/perl
+#!/usr/bin/perl
 use strict;
 use warnings;
 
@@ -14,7 +14,7 @@ use File::Glob;
 
 # global variables
 my ($svn, $config_changed, $version, $configFile, $dist, @all_arch, $workingdir, $gitremotepath, $debianroot, $pubkeyfile, $secretkeyfile, $sourcefile, $debhomepub, $debhomesec);
-our ($opt_B, $opt_c, $opt_h, $opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $opt_x, $opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_d, $opt_l, $opt_R, $opt_k, $opt_K);
+our ($opt_n, $opt_B, $opt_c, $opt_h, $opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $opt_x, $opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_d, $opt_l, $opt_R, $opt_k, $opt_K);
 
 # sub to get a source tarball and include it in the debian package for building
 # if it is required
@@ -59,7 +59,7 @@ sub getsource {
 		return 5 unless -e $sourcefile;
 				
 		# copy to the source file to $workingdir/$package/tmp
-		mkdir "$workingdir/$package/tmp" if ! -d "$workingdir/$package/tmp";
+		mkpath "$workingdir/$package/tmp";
 		my $copycmd = "cp -f $sourcefile $workingdir/$package/tmp/";
 		system($copycmd);
 		return 1;	
@@ -223,7 +223,7 @@ sub makeCompressedPackages {
 
 # remove working dir
 sub removeworkingdir {
-	system("rm -rf " . $workingdir . "/*");
+	rmtree $workingdir;
 }
 
 # given an archive name this function returns the control field
@@ -407,6 +407,7 @@ sub buildpackage {
 # all objects to be cloned so depth=1 and --single-branch
 # cannot be used.
 # gitclone (package_name, targetdirectory)
+# the return code from the git clone command is returned.
 sub gitclone {
 	# get parameters
 	my($pname, $directory) = @_;
@@ -414,11 +415,10 @@ sub gitclone {
 	# project name is project_name.git
 	# project_name.git is the repository name
 	# remove directory
-	system("rm -rf $directory");
+	rmtree "$directory";
 	
 	my $rc = system("git clone -n -v $gitremotepath" . "$pname" . ".git" . " $directory");
-	# die if unsuccessful
-	die "Error cloning $pname.git:$!\n" unless $rc == 0;
+	return $rc;
 }
 
 # sub to get the remote name
@@ -712,7 +712,7 @@ if ($opt_k) {
 	# if public key is in file:///mnt/svn/root/my-linux/sources/gpg/debhomepubkey.asc
 
 	# make directory /etc/apt/keyrings if it does not exist
-	mkdir "/etc/apt/keyrings" unless -d "/etc/apt/keyrings";
+	mkpath "/etc/apt/keyrings";
 
 	# extract the file from subversion
 	# check that the subversion respository is available
@@ -837,7 +837,7 @@ if ($opt_g) {
 	    	if (system($command) == 0) {
 			print "cloned: " . $gitremotepath . $package . "/.git" . " -- " . $package . " branch\n";
 	    		# remove .git directory
-    			system("rm -rf " . $workingdir . "/" . $package . "/.git");
+    			rmtree $workingdir . "/" . $package . "/.git";
 
     			# remove the readme file and .gitignore
     			unlink "$workingdir" . "/" . "$package" . "/README.md";
@@ -869,7 +869,7 @@ if ($opt_d) {
 	    	if (system($command) == 0) {
 			print "cloned: " . $gitremotepath . $package . "/.git -- dev branch\n";
 	    		# remove .git directory
-    			system("rm -rf " . $workingdir . "/" . $package . "/.git");
+    			rmtree $workingdir . "/" . $package . "/.git";
 
     			# remove the readme file and .gitignore
     			unlink "$workingdir" . "/" . "$package" . "/README.md";
@@ -894,13 +894,14 @@ if ($opt_n) {
 	foreach my $package (@package_list) {
 		print "\n";
 		print "--------------------------------------------------------------------------------\n";
-		my $projectrepo = $gitremotepath . "$package" . "\.git";
-    		my $command = $gitclone . "-b dev " . $projectrepo . " " . $workingdir . "/" . $package . " 1>/tmp/git.log 2>/tmp/giterror.log";
-
-	    	if (system($command) == 0) {
-			print "cloned: " . $gitremotepath . $package . "/.git -- dev branch\n";
+		# clone the package
+	    	if (gitclone($package, $workingdir . "/" . $package) == 0) {
+	    		# checkout the latest branch
+	    		chdir $workingdir . "/" . $package;
+	    		lbranch;
+	    		
 	    		# remove .git directory
-    			system("rm -rf " . $workingdir . "/" . $package . "/.git");
+    			rmtree $workingdir . "/" . $package . "/.git";
 
     			# remove the readme file and .gitignore
     			unlink "$workingdir" . "/" . "$package" . "/README.md";
