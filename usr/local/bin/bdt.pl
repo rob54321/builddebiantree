@@ -400,24 +400,44 @@ sub buildpackage {
 	chdir $currentdir;
 }
 
-# new subs for the option -n -- newest from git
-# sub to clone a git project
-# so that the latest branch can be determined
-# the option --sort=-committerdate requires
-# all objects to be cloned so depth=1 and --single-branch
-# cannot be used.
-# gitclone (package_name, targetdirectory)
+# gitclone is invoked from the -d -g and -n options.
+# they require different clone options.
+# The options are set my the mode
+# mode 1 : invoked by -g  git options: single_branch, depth 1, branch = project name
+# mode 2 : invoked by -d  git options: single_branch, depth 1, branch = dev
+# mode 3 : invoked by -n  git options: no_checkout, all branches download
+# gitclone (package_name, mode, targetdirectory)
 # the return code from the git clone command is returned.
 sub gitclone {
 	# get parameters
-	my($pname, $directory) = @_;
+	my($pname, $mode, $directory) = @_;
 
+	# set options from mode
+	my $gitoptions = "";
+	if ($mode == 1) {
+		$gitoptions = " -v --single-branch --depth=1 -b $pname ";
+	} elsif  ($mode == 2) {
+		$gitoptions = " -v --single-branch --depth=1 -b dev ";
+	} elsif ($mode == 3) {
+		$gitoptions = " -v -n ";
+	} else {
+		# mode is an undefined value, die
+		die "mode = $mode is undefined\n";
+	}
+	
 	# project name is project_name.git
 	# project_name.git is the repository name
 	# remove directory
 	rmtree "$directory";
+	unlink "/tmp/giterror.log";
 	
-	my $rc = system("git clone -n -v $gitremotepath" . "$pname" . ".git" . " $directory");
+	# clone the project	
+	my $rc = system("su robert -c 'git clone $gitoptions $gitremotepath$pname.git $directory 2>/tmp/giterror.log' ");
+	if ($rc == 0) {
+		print "gitclone: no error rc = $rc\n";
+	} else {
+		print "gitclone: error cloning rc = $rc\n";
+	}
 	return $rc;
 }
 
@@ -910,8 +930,9 @@ if ($opt_n) {
 		print "\n";
 		print "--------------------------------------------------------------------------------\n";
 		# clone the package
-	    	if (gitclone($package, $workingdir . "/" . $package) == 0) {
+	    	if (gitclone($package, 3, $workingdir . "/" . $package) == 0) {
 	    		# checkout the latest branch
+print "gitclone success\n";
 	    		chdir $workingdir . "/" . $package;
 	    		lbranch;
 	    		
@@ -926,7 +947,8 @@ if ($opt_n) {
 			buildpackage($workingdir, $package, "git");
 		} else {
 			my $error = `cat /tmp/giterror.log`;
-			print "$error\n";
+			print "Error cloning $package\n";
+			print "giterror: $error\n";
 		}
 	}
 }
