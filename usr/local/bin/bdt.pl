@@ -443,7 +443,7 @@ sub gitclone {
 # sub to get the remote name
 # this sub can only be executed in the git cloned directory
 sub getremote {
-	my @remotelist = `git remote`;
+	my @remotelist = `su robert -c 'git remote'`;
 	chomp (@remotelist);
 	return $remotelist[0];
 }
@@ -460,7 +460,7 @@ sub lbranch {
 	
 	# get heads and sort
 	# line 0 will be the latest head, line 1 next etc
-	my @line = `git ls-remote --heads --sort=-committerdate $rname`;
+	my @line = `su robert -c 'git ls-remote --heads --sort=-committerdate $rname'`;
 
 	# each line contains "commit refs/heads/branch_name"
 	# the first line will have the newest date
