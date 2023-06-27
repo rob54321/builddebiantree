@@ -429,14 +429,13 @@ sub gitclone {
 	# project_name.git is the repository name
 	# remove directory
 	rmtree "$directory";
-	unlink "/tmp/giterror.log";
 	
 	# clone the project	
-	my $rc = system("su robert -c 'git clone $gitoptions $gitremotepath$pname.git $directory 2>/tmp/giterror.log' ");
-	if ($rc == 0) {
-		print "gitclone: no error rc = $rc\n";
-	} else {
-		print "gitclone: error cloning rc = $rc\n";
+	my $rc = system("su robert -c 'git clone $gitoptions $gitremotepath$pname.git $directory >>/tmp/git.log 2>&1' ");
+
+	# print an error message if there was an error
+	if ($rc != 0) {
+		print "Error cloning $pname\n";
 	}
 	return $rc;
 }
@@ -446,7 +445,6 @@ sub gitclone {
 sub getremote {
 	my @remotelist = `git remote`;
 	chomp (@remotelist);
-	print "remote list: @remotelist\n";
 	return $remotelist[0];
 }
 
@@ -471,7 +469,7 @@ sub lbranch {
 	chomp($lbranch);
 
 	# checkout latest branch so software is available to place in the linux repo
-	my $rc = system("git checkout $lbranch");
+	my $rc = system("su robert -c 'git checkout $lbranch >>/tmp/git.log 2>&1'");
 	die ("Could not checkout $lbranch from $rname:$!\n") unless $rc == 0;
 	
 	# print remote name and latest branch
@@ -504,6 +502,13 @@ sub usage {
 -V print version and exit\
 -R reset back to defaults and exit\n";
 }
+
+#####################################################
+##### main entry #####
+#####################################################
+
+# delete logfile
+unlink "/tmp/git.log";
 
 # default values
 $configFile = "$ENV{'HOME'}/.bdt.rc";
@@ -858,19 +863,14 @@ if ($opt_p) {
 # export to depth 1 and delete .git directory
 # this options assumes the branch name is the same as the package name.
 if ($opt_g) {
-    	removeworkingdir;
 	# checkout each package in list $opt_t is a space separated string
 	my @package_list = split /\s+/, $opt_g;
-	my $gitclone = "git clone --single-branch --depth 1 --no-tags ";
 
 	foreach my $package (@package_list) {
 		print "\n";
 		print "--------------------------------------------------------------------------------\n";
-		my $projectrepo = $gitremotepath . "$package" . "\.git";
-    		my $command = $gitclone . "-b " . $package . " " . $projectrepo . " " . $workingdir . "/" . $package . " 1>/tmp/git.log 2>/tmp/giterror.log";
 
-	    	if (system($command) == 0) {
-			print "cloned: " . $gitremotepath . $package . "/.git" . " -- " . $package . " branch\n";
+	    	if (gitclone($package, 1, $workingdir . "/" . $package) == 0) {
 	    		# remove .git directory
     			rmtree $workingdir . "/" . $package . "/.git";
 
@@ -880,9 +880,6 @@ if ($opt_g) {
 
 			# build the package and move it to the tree
 			buildpackage($workingdir, $package, "git");
-		} else {
-			my $error = `cat /tmp/giterror.log`;
-			print "$error\n";
 		}
 	}
 }
@@ -890,19 +887,14 @@ if ($opt_g) {
 # export a package from git, development branch, build it and insert into the repository
 # export to depth 1 and delete .git directory
 if ($opt_d) {
-    	removeworkingdir;
 	# checkout each package in list $opt_t is a space separated string
 	my @package_list = split /\s+/, $opt_d;
-	my $gitclone = "git clone --single-branch --depth 1 --no-tags ";
 
 	foreach my $package (@package_list) {
 		print "\n";
 		print "--------------------------------------------------------------------------------\n";
-		my $projectrepo = $gitremotepath . "$package" . "\.git";
-    		my $command = $gitclone . "-b dev " . $projectrepo . " " . $workingdir . "/" . $package . " 1>/tmp/git.log 2>/tmp/giterror.log";
 
-	    	if (system($command) == 0) {
-			print "cloned: " . $gitremotepath . $package . "/.git -- dev branch\n";
+	    	if (gitclone($package, 2, $workingdir . "/" . $package) == 0) {
 	    		# remove .git directory
     			rmtree $workingdir . "/" . $package . "/.git";
 
@@ -912,9 +904,6 @@ if ($opt_d) {
     			
 			# build the package and move it to the tree
 			buildpackage($workingdir, $package, "git");
-		} else {
-			my $error = `cat /tmp/giterror.log`;
-			print "$error\n";
 		}
 	}
 }
@@ -922,7 +911,6 @@ if ($opt_d) {
 # export the latest package from git, irrespective of which branch it is on, build it and insert into the repository
 # this is the -n newest option
 if ($opt_n) {
-    	removeworkingdir;
 	# checkout each package in list $opt_t is a space separated string
 	my @package_list = split /\s+/, $opt_n;
 
@@ -932,7 +920,6 @@ if ($opt_n) {
 		# clone the package
 	    	if (gitclone($package, 3, $workingdir . "/" . $package) == 0) {
 	    		# checkout the latest branch
-print "gitclone success\n";
 	    		chdir $workingdir . "/" . $package;
 	    		lbranch;
 	    		
@@ -945,10 +932,6 @@ print "gitclone success\n";
     			
 			# build the package and move it to the tree
 			buildpackage($workingdir, $package, "git");
-		} else {
-			my $error = `cat /tmp/giterror.log`;
-			print "Error cloning $package\n";
-			print "giterror: $error\n";
 		}
 	}
 }
