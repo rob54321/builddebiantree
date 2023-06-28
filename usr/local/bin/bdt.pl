@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 
-# this programme exports all debian source packages from svn and
+# this programme exports all debian source packages from svn and git
 # builds the debian packages, places then in the debian tree, builds the
 # Packages file, updates apt-get.
 use File::Path;
