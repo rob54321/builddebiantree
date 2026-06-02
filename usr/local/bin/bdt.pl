@@ -527,7 +527,7 @@ $gitremotepath = "https://github.com/rob54321/";
 
 $debianroot = "/mnt/debhome";
 $sourcefile = undef;
-$debhomepub = "debhomepubkey.asc";
+$debhomepub = "debhomepubkey.gpg";
 $debhomesec = "debhomeseckey.gpg";
 # used for the -r option to work with relative paths
 # store the current working directory absolute path
@@ -746,29 +746,22 @@ if ($opt_b) {
 }
 
 # import public key
-# the key is copied to /etc/apt/keyrings/debhomepubkey.asc
+# the key is copied to /etc/apt/keyrings/debhomepubkey.gpg
 ########### this must change ###################
 if ($opt_k) {
-	# if public key is in file:///mnt/svn/root/my-linux/sources/gpg/debhomepubkey.asc
 
 	# make directory /etc/apt/keyrings if it does not exist
 	mkpath "/etc/apt/keyrings";
 
-	# extract the file from subversion
-	# check that the subversion respository is available
-	if (-d $svn) {
-		my $command = "svn export --force file:///mnt/svn/root/my-linux/sources/gpg/" . $debhomepub . " /etc/apt/keyrings";
-		my $rc = system($command);
-		if ($rc == 0) {
-			# set mode to 0644
-			chmod(0644, "/etc/apt/keyrings/" . $debhomepub);
-		} else {
-			# could not extract file from subversion
-			print "Could not extract file from subversion\n";
-		}
-	} else {
-	print "subversion repository not found\n";
+	# copy the public key debhomepubkey.gpg from /mnt/debhome/debhomepubkey.gpg -> /etc/apt/keyrings/
+	my $command = "cp -vf $pubkeyfile /etc/apt/keyrings/";
+	my $rc = system($command);
+	# check if copied
+	if ($rc !=0) {
+		die "Could not copy $pubkeyfile to /etc/apt/keyrings/";
 	}
+	# set permissions
+	chmod(0644, "/etc/apt/keyrings/" . $debhomepub);
 }    
 
 # import the secret key for signing from subversion
