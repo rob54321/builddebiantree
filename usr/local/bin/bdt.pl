@@ -13,7 +13,7 @@ use Cwd;
 use File::Glob;
 
 # global variables
-my ($svn, $config_changed, $version, $configFile, $dist, @all_arch, $workingdir, $gitremotepath, $debianroot, $sourcefile, $debhomepub, $debhomesec);
+my ($svn, $config_changed, $version, $configFile, $dist, @all_arch, $workingdir, $gitremotepath, $debianroot, $sourcefile);
 our ($opt_n, $opt_B, $opt_c, $opt_h, $opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $opt_x, $opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_d, $opt_l, $opt_R);
 
 # sub to get a source tarball and include it in the debian package for building
@@ -447,6 +447,8 @@ sub usage {
 #####################################################
 ##### main entry #####
 #####################################################
+# debhomepubkey used for the file debhomepubkey.gpg
+my $debhomepubkey = "/etc/apt/keyrings/debhomepubkey.gpg";
 
 # delete logfile
 unlink "/tmp/git.log";
@@ -867,11 +869,40 @@ if ($opt_s) {
 	# there is only one release file for all architectures in debianroot/dists/home
 	chdir $debianroot . "/dists/" . $dist;
 	unlink("Release");
-     system("apt-ftparchive -c=/usr/local/bin/apt-ftparchive-home.conf release . > Release");
+    system("apt-ftparchive -c=/usr/local/bin/apt-ftparchive-home.conf release . > Release");
 
 	# the release file has changed , it must be signed
-	system("gpg --clearsign -o InRelease Release");
-	system("gpg -abs -o Release.gpg Release");
+	# There may be multiple keys in the keyring.
+	# /etc/apt/keyrings/debhomepubkey.gpg is always the current key
+	# get the current key id using gpg --show-key /etc/apt/keyrings/debhomepubkey.gpg
+	# and extract the key id to a file /tmp/currentkeyid
+
+	########################################################
+	# output of gpg --show-key
+	########################################################
+	#pub   ed25519 2026-06-16 [SC] [expires: 2029-06-15]
+	#      5D954E8C6641FED507E08E25FB9DC31D1F7D862F
+	#uid                      debhome
+	#sub   cv25519 2026-06-16 [E]
+	########################################################
+	
+	system("gpg --show-key $debhomepubkey > /tmp/debhomekeyid.txt");
+	
+	# get the key id
+#	$ENV{'GPG_TTY'} = `tty`;
+#	chomp $ENV{'GPG_TTY'};	
+	
+	open (my $fh, "<", "/tmp/debhomekeyid.txt");
+	my @keylist = <$fh>;
+	close $fh;
+	# remove the leading white space from second line
+	$keylist[1] =~ s/^\s+//;
+	
+	# really important to remove the trailing CR/LF
+	chomp $keylist[1];
+	print "Current key id: $keylist[1]\n";
+	system("gpg --verbose --batch --yes --pinentry-mode loopback --passphrase  'coahtr3552' --clearsign --default-key $keylist[1]  -o InRelease . Release");
+	system("gpg --verbose --batch --yes -abs --default-key $keylist[1] -o Release.gpg Release");
 
 	# restore original directory
 	chdir $currentdir;
