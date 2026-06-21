@@ -903,7 +903,16 @@ if ($opt_s) {
 	print "Current key id: $keylist[1]\n";
 	system("gpg --verbose --batch --yes --pinentry-mode loopback --passphrase  'coahtr3552' --default-key $keylist[1] --clear-sign -o InRelease Release");
 	system("gpg --verbose --batch --yes -abs --default-key $keylist[1] -o Release.gpg Release");
+	
+	# write the key id to /mnt/debhome/dists/home/currentkeyid.txt
+	# delete the file if it exists
+	unlink ("/mnt/debhome/dists/home/currentkeyid.txt");
+	open (my $keyh, ">>", "/mnt/debhome/dists/home/currentkeyid.txt");
 
+	# write the keyid to the file
+	print $keyh "$keylist[1]\n";
+	close $keyh;
+	
 	# restore original directory
 	chdir $currentdir;
 }
