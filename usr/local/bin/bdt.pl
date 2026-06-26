@@ -933,7 +933,7 @@ if ($opt_k) {
 		# repository is available but not signed.
 		print "repository is available but not signed\n";
 
-	} elsif (! -d "/mnt/debhome\n") {
+	} elsif (! -d "/mnt/debhome") {
 		# repository is not available
 		print "repository is not available\n";
 
