@@ -14,7 +14,7 @@ use File::Glob;
 
 # global variables
 my ($svn, $config_changed, $version, $configFile, $dist, @all_arch, $workingdir, $gitremotepath, $debianroot, $sourcefile);
-our ($opt_n, $opt_B, $opt_c, $opt_h, $opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $opt_x, $opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_d, $opt_l, $opt_R);
+our ($opt_k, $opt_n, $opt_B, $opt_c, $opt_h, $opt_w, $opt_f, $opt_b, $opt_S, $opt_t, $opt_p, $opt_r, $opt_x, $opt_G, $opt_F, $opt_V, $opt_g, $opt_s, $opt_d, $opt_l, $opt_R);
 
 # sub to get a source tarball and include it in the debian package for building
 # if it is required
@@ -431,6 +431,7 @@ sub usage {
 -d [\"pkg1 pkg2 ...\"] extract package from git dev branch, build->add to tree\
 -n [\"pkg1 pkg2 ...\"] extract package from git newest branch, build->add to tree\
 -r [\"dir1 dir2 ...\"] recurse directory for deb packages list containing full paths, build -> add to archive\
+-k show current key id | none if repository not signed
 -B [path to debian source tree] builds a debian package and adds to archive\
 -F force package to be inserted in tree regardless of version\
 -x path, to existing respository, default: $debianroot\
@@ -486,7 +487,7 @@ my $no_arg = @ARGV;
 
 
 # get command line options
-getopts('n:B:c:FVt:hS:lp:r:x:d:sf:w:Rg:G:');
+getopts('n:B:c:FVt:hkS:lp:r:x:d:sf:w:Rg:G:');
 
 
 # if no options or h option print usage
@@ -915,4 +916,30 @@ if ($opt_s) {
 	
 	# restore original directory
 	chdir $currentdir;
+}
+
+# show the current key id or none if the repository is not signed
+if ($opt_k) {
+	# check if the file exists
+	if (-f "/mnt/debhome/dists/home/currentkeyid.txt") {
+		# open file and display key id
+		open (my $fh, "<", "/mnt/debhome/dists/home/currentkeyid.txt");
+		my $currentkeyid = <$fh>;
+		chomp($currentkeyid);
+		close $fh;
+		print "current key id: $currentkeyid\n";
+
+	} elsif (-d "/mnt/debhome/dists/home/") {
+		# repository is available but not signed.
+		print "repository is available but not signed\n";
+
+	} elsif (! -d "/mnt/debhome\n") {
+		# repository is not available
+		print "repository is not available\n";
+
+	} else {
+		# /mnt/debhome is a directory and not a link
+		print "/mnt/debhome is a directory and not a link. repository is not available\n";
+	}
+
 }
