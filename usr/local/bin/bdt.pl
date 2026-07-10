@@ -907,41 +907,25 @@ if ($opt_s) {
 	# update
 	system("apt update");
 	
-	# write the key id to /mnt/debhome/dists/home/currentkeyid.txt
-	# delete the file if it exists
-	unlink ("/mnt/debhome/dists/home/currentkeyid.txt");
-	open (my $keyh, ">>", "/mnt/debhome/dists/home/currentkeyid.txt");
-
-	# write the keyid to the file
-	print $keyh "$keylist[1]\n";
-	close $keyh;
-	
 	# restore original directory
 	chdir $currentdir;
 }
 
 # show the current key id or none if the repository is not signed
 if ($opt_k) {
-	# check if the file exists
-	if (-f "/mnt/debhome/dists/home/currentkeyid.txt") {
-		# open file and display key id
-		open (my $fh, "<", "/mnt/debhome/dists/home/currentkeyid.txt");
-		my $currentkeyid = <$fh>;
-		chomp($currentkeyid);
-		close $fh;
-		print "current key id: $currentkeyid\n";
-
-	} elsif (-d "/mnt/debhome/dists/home/") {
-		# repository is available but not signed.
-		print "repository is available but not signed\n";
-
-	} elsif (! -d "/mnt/debhome") {
-		# repository is not available
-		print "repository is not available\n";
-
-	} else {
-		# /mnt/debhome is a directory and not a link
-		print "/mnt/debhome is a directory and not a link. repository is not available\n";
+	# get the key id from /etc/apt/keyrings/debhomepubkey.gpg
+	# check if /etc/apt/keyrings/debhomebubkey.gpg exists
+	if (-f "/etc/apt/keyrings/debhomepubkey.gpg") {
+		my @keyinfo = `gpg --show-key /etc/apt/keyrings/debhomepubkey.gpg`;
+		# find the line that starts with white space
+		for(my $i=0; $i<scalar(@keyinfo); $i++) {
+			if ($keyinfo[$i] =~ /^[ ]/) {
+				# this line has the key id in it
+				# remove the leading white space
+				$keyinfo[$i] =~ s/^[ ].*//;
+				print "Current key id: [$keyinfo[$i]]\n";
+				last;
+			}
+		}
 	}
-
 }
