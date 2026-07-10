@@ -1,5 +1,5 @@
 Package: builddebiantree
-Version: 4.0.2
+Version: 4.0.3
 Architecture: all
 Maintainer: Robert Key robkey@mighty.co.za
 Depends: perl, dpkg, bzip2, tar, dpkg-dev, apt-utils, subversion | svn-src, gpg, initialise-linux

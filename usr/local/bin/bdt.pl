@@ -922,7 +922,8 @@ if ($opt_k) {
 			if ($keyinfo[$i] =~ /^[ ]/) {
 				# this line has the key id in it
 				# remove the leading white space
-				$keyinfo[$i] =~ s/^[ ].*//;
+				$keyinfo[$i] =~ s/^\s+//;
+				chomp($keyinfo[$i]);
 				print "Current key id: [$keyinfo[$i]]\n";
 				last;
 			}
